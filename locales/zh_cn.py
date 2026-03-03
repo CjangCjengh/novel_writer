@@ -950,6 +950,14 @@ PROMPTS.update({
 - 总字数：约{total_words}字
 
 请以Markdown格式生成完整的总结报告。""",
+
+    # -- Language enforcement instruction --
+    "language_instruction": (
+        "**重要——语言要求**："
+        "你必须使用{native_name}（{english_name}）撰写所有输出内容。"
+        "每一句话、每一段、每个标题和标签都必须使用{native_name}。"
+        "除非是引用专有名词或术语，否则不要混入其他语言。"
+    ),
 })
 
 # ============================================================

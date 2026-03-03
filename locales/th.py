@@ -925,6 +925,14 @@ PROMPTS.update({
 - จำนวนคำทั้งหมด: ~{total_words}
 
 สร้างรายงานสรุปเต็มรูปแบบใน Markdown""",
+
+    # -- Language enforcement instruction --
+    "language_instruction": (
+        "**สำคัญ — ข้อกำหนดภาษา**: "
+        "คุณต้องเขียนผลลัพธ์ทั้งหมดเป็น{native_name} ({english_name}) "
+        "ทุกประโยค ย่อหน้า หัวข้อ และป้ายกำกับต้องเป็น{native_name} "
+        "ห้ามผสมภาษาอื่น เว้นแต่จะอ้างอิงคำนามเฉพาะหรือคำศัพท์เทคนิค"
+    ),
 })
 
 TEMPLATES = dict(_BASE_TEMPLATES)

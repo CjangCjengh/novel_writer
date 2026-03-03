@@ -922,6 +922,14 @@ Formato Markdown, continens:
 - Verba totalia: ~{total_words}
 
 Relationem completam formato Markdown genera.""",
+
+    # -- Language enforcement instruction --
+    "language_instruction": (
+        "**MAGNI MOMENTI — REQUISITUM LINGUAE**: "
+        "OMNIA scripta tua in {native_name} ({english_name}) scribenda sunt. "
+        "Omnis sententia, paragraphus, titulus et inscriptio in {native_name} esse debet. "
+        "Noli alias linguas miscere nisi nomina propria vel terminos technicos citans."
+    ),
 })
 
 # ============================================================

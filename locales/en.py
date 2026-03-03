@@ -949,6 +949,14 @@ Output in Markdown format, including:
 - Total words: ~{total_words}
 
 Please generate the full summary report in Markdown format.""",
+
+    # -- Language enforcement instruction (used by prompts.py to append to system prompts) --
+    "language_instruction": (
+        "**IMPORTANT — LANGUAGE REQUIREMENT**: "
+        "You MUST write ALL your output in {native_name} ({english_name}). "
+        "Every single sentence, paragraph, heading, and label must be in {native_name}. "
+        "Do NOT mix in other languages unless explicitly quoting proper nouns or terms."
+    ),
 }
 
 # ============================================================

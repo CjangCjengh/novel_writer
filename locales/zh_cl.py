@@ -919,6 +919,14 @@ PROMPTS.update({
 - 總字：約{total_words}
 
 以Markdown出全結。""",
+
+    # -- Language enforcement instruction --
+    "language_instruction": (
+        "**要旨——言語之則**："
+        "凡所輸出，悉以{native_name}（{english_name}）爲之。"
+        "一句一段，標題標簽，皆用{native_name}，不可雜以他語。"
+        "惟引用專名術語，方可例外。"
+    ),
 })
 
 # ============================================================

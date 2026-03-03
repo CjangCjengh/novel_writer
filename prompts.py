@@ -15,9 +15,37 @@ def get_templates() -> dict:
     return get_locale().TEMPLATES
 
 
+# --- Language enforcement ---
+def get_language_instruction() -> str:
+    """Generate a mandatory language instruction based on config.LANGUAGE.
+    Reads the localised 'language_instruction' template from the current locale's
+    PROMPTS dict and formats it with {native_name} and {english_name}.
+    Returns empty string if language info is unavailable.
+    """
+    import config as _cfg
+    from locales import SUPPORTED_LANGUAGES
+    lang_code = _cfg.LANGUAGE
+    lang_info = SUPPORTED_LANGUAGES.get(lang_code)
+    if not lang_info:
+        return ""
+    native_name, english_name = lang_info
+    template = get_prompts().get("language_instruction", "")
+    if not template:
+        return ""
+    return "\n\n" + template.format(native_name=native_name, english_name=english_name)
+
+
+def _with_lang(prompt: str) -> str:
+    """Append the language enforcement instruction to a system prompt."""
+    lang_inst = get_language_instruction()
+    if lang_inst:
+        return prompt + lang_inst
+    return prompt
+
+
 # Convenience accessors for commonly used prompts
 def planner_system() -> str:
-    return get_prompts()["planner_system"]
+    return _with_lang(get_prompts()["planner_system"])
 
 
 def planner_first_question() -> str:
@@ -33,23 +61,23 @@ def planner_summarize() -> str:
 
 
 def outline_system() -> str:
-    return get_prompts()["outline_system"]
+    return _with_lang(get_prompts()["outline_system"])
 
 
 def volume_outline_system() -> str:
-    return get_prompts()["volume_outline_system"]
+    return _with_lang(get_prompts()["volume_outline_system"])
 
 
 def worldbuilding_system() -> str:
-    return get_prompts()["worldbuilding_system"]
+    return _with_lang(get_prompts()["worldbuilding_system"])
 
 
 def character_system() -> str:
-    return get_prompts()["character_system"]
+    return _with_lang(get_prompts()["character_system"])
 
 
 def writer_system(**kwargs) -> str:
-    return get_prompts()["writer_system"].format(**kwargs)
+    return _with_lang(get_prompts()["writer_system"].format(**kwargs))
 
 
 def writer_chapter_prompt(**kwargs) -> str:
@@ -57,11 +85,11 @@ def writer_chapter_prompt(**kwargs) -> str:
 
 
 def post_write_system() -> str:
-    return get_prompts()["post_write_system"]
+    return _with_lang(get_prompts()["post_write_system"])
 
 
 def style_guide_system() -> str:
-    return get_prompts()["style_guide_system"]
+    return _with_lang(get_prompts()["style_guide_system"])
 
 
 # --- Feature #1: Multi-draft outline ---
@@ -71,15 +99,15 @@ def outline_merge_prompt(**kwargs) -> str:
 
 # --- Feature #2: Parallel quality review ---
 def consistency_reviewer_system() -> str:
-    return get_prompts()["consistency_reviewer_system"]
+    return _with_lang(get_prompts()["consistency_reviewer_system"])
 
 
 def style_reviewer_system() -> str:
-    return get_prompts()["style_reviewer_system"]
+    return _with_lang(get_prompts()["style_reviewer_system"])
 
 
 def foreshadowing_reviewer_system() -> str:
-    return get_prompts()["foreshadowing_reviewer_system"]
+    return _with_lang(get_prompts()["foreshadowing_reviewer_system"])
 
 
 def review_chapter_prompt(**kwargs) -> str:
@@ -122,7 +150,7 @@ def get_quote_rules_heading() -> str:
 
 # --- Feature #3: Polish loop ---
 def polish_evaluate_system() -> str:
-    return get_prompts()["polish_evaluate_system"]
+    return _with_lang(get_prompts()["polish_evaluate_system"])
 
 
 def polish_evaluate_prompt(**kwargs) -> str:
@@ -130,7 +158,7 @@ def polish_evaluate_prompt(**kwargs) -> str:
 
 
 def polish_improve_system() -> str:
-    return get_prompts()["polish_improve_system"]
+    return _with_lang(get_prompts()["polish_improve_system"])
 
 
 def polish_improve_prompt(**kwargs) -> str:
@@ -144,7 +172,7 @@ def volume_adjust_prompt(**kwargs) -> str:
 
 # --- Feature #6: Final summary ---
 def final_summary_system() -> str:
-    return get_prompts()["final_summary_system"]
+    return _with_lang(get_prompts()["final_summary_system"])
 
 
 def final_summary_prompt(**kwargs) -> str:
@@ -153,7 +181,7 @@ def final_summary_prompt(**kwargs) -> str:
 
 # --- Word count validation ---
 def expand_chapter_system() -> str:
-    return get_prompts()["expand_chapter_system"]
+    return _with_lang(get_prompts()["expand_chapter_system"])
 
 
 def expand_chapter_prompt(**kwargs) -> str:
@@ -161,7 +189,7 @@ def expand_chapter_prompt(**kwargs) -> str:
 
 
 def compress_chapter_system() -> str:
-    return get_prompts()["compress_chapter_system"]
+    return _with_lang(get_prompts()["compress_chapter_system"])
 
 
 def compress_chapter_prompt(**kwargs) -> str:
@@ -169,7 +197,7 @@ def compress_chapter_prompt(**kwargs) -> str:
 
 
 def split_chapter_system() -> str:
-    return get_prompts()["split_chapter_system"]
+    return _with_lang(get_prompts()["split_chapter_system"])
 
 
 def split_chapter_prompt(**kwargs) -> str:

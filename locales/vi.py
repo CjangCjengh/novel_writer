@@ -926,6 +926,14 @@ Xuất bằng Markdown, bao gồm:
 - Tổng số từ: ~{total_words}
 
 Tạo báo cáo đầy đủ bằng Markdown.""",
+
+    # -- Language enforcement instruction --
+    "language_instruction": (
+        "**QUAN TRỌNG — YÊU CẦU NGÔN NGỮ**: "
+        "Bạn PHẢI viết TẤT CẢ nội dung bằng {native_name} ({english_name}). "
+        "Mọi câu, đoạn văn, tiêu đề và nhãn phải được viết bằng {native_name}. "
+        "KHÔNG trộn lẫn các ngôn ngữ khác trừ khi trích dẫn danh từ riêng hoặc thuật ngữ chuyên môn."
+    ),
 })
 
 # ============================================================
