@@ -258,15 +258,22 @@ class OutlineAgent:
             drafts_text += header + content
         return drafts_text
 
-    def _calc_truncate_ratio(self, drafts: list[dict], system_prompt: str) -> float:
-        """Calculate the truncation ratio (0~1) based on the token budget."""
+    def _calc_truncate_ratio(self, drafts: list[dict], system_prompt: str,
+                             token_budget: int | None = None) -> float:
+        """Calculate the truncation ratio (0~1) based on the token budget.
+
+        Args:
+            token_budget: If provided, use this as the context limit (e.g. max_tokens
+                          returned by the API); otherwise use config.MAX_INPUT_TOKENS.
+        """
+        budget = token_budget if token_budget else config.MAX_INPUT_TOKENS
         base_prompt = prompts.outline_merge_prompt(count=len(drafts), drafts_text="")
         base_tokens = self._estimate_tokens(system_prompt + base_prompt)
         header_tokens = self._estimate_tokens(
             f"\n\n{'=' * 40}\nDraft 1 (SomeStyle)\n{'=' * 40}\n"
         ) * len(drafts)
 
-        available = config.MAX_INPUT_TOKENS - base_tokens - header_tokens - 500
+        available = budget - base_tokens - header_tokens - 500
         if available <= 0:
             available = 2000
 
@@ -276,39 +283,87 @@ class OutlineAgent:
         ratio = available / total_draft_tokens
         return min(ratio * 0.95, 1.0)  # leave 5% margin
 
+    @staticmethod
+    def _calc_ratio_from_error(exc: ContextLengthExceededError,
+                               prev_ratio: float) -> float | None:
+        """Calculate a new truncation ratio from the precise token counts
+        returned by the API error.
+
+        Falls back to reducing the previous ratio by 25% if the API does not
+        provide sufficient numeric information.
+        """
+        if exc.input_tokens and exc.max_tokens and exc.input_tokens > 0:
+            # Use precise values: ratio = max_tokens / input_tokens
+            # with an extra 10% safety margin
+            precise_ratio = (exc.max_tokens / exc.input_tokens) * 0.90
+            # Scale to the draft truncation ratio
+            new_ratio = prev_ratio * precise_ratio
+        else:
+            # No precise values available; reduce by 25% each round
+            new_ratio = prev_ratio * 0.75
+
+        # Give up if the ratio is too small (keep at least 15% of content)
+        if new_ratio < 0.15:
+            return None
+        return new_ratio
+
     def merge_outlines(self, plan: dict, drafts: list[dict]) -> str:
         """Merge multiple outline drafts into one optimal outline.
-        First attempts with full drafts; if a ContextLengthExceededError is raised,
-        automatically truncates the drafts and retries once.
+
+        Uses a progressive truncation-retry strategy:
+        1. First attempt with full drafts.
+        2. On context-length-exceeded, compute truncation ratio from the precise
+           token counts returned by the API.
+        3. Retry up to max_retries times, shrinking further each round.
         """
         ui = _ui()
         system_prompt = prompts.outline_system()
+        max_retries = 3  # maximum truncation retries
 
         # ── First attempt: full drafts ──
+        current_ratio = 1.0  # 1.0 = no truncation
         drafts_text = self._build_drafts_text(drafts)
         prompt = prompts.outline_merge_prompt(count=len(drafts), drafts_text=drafts_text)
         try:
             response = self.client.chat(system_prompt, [{"role": "user", "content": prompt}])
             if response:
                 return response
-        except ContextLengthExceededError as e:
-            # ── Caught context-length-exceeded error → truncate and retry ──
-            ratio = self._calc_truncate_ratio(drafts, system_prompt)
-            if ratio < 1.0:
+        except ContextLengthExceededError as first_exc:
+            last_exc = first_exc
+            # ── Caught context-length-exceeded → enter progressive truncation loop ──
+            for retry in range(1, max_retries + 1):
+                new_ratio = self._calc_ratio_from_error(last_exc, current_ratio)
+                if new_ratio is None:
+                    # Ratio too low, give up retrying
+                    break
+
+                # Also use estimation as a reference floor (prefer API-reported max_tokens if available)
+                est_budget = last_exc.max_tokens if last_exc.max_tokens else None
+                est_ratio = self._calc_truncate_ratio(drafts, system_prompt, token_budget=est_budget)
+                # Pick the smaller (safer) ratio from the two methods
+                current_ratio = min(new_ratio, est_ratio) if est_ratio < 1.0 else new_ratio
+
                 total_est = sum(self._estimate_tokens(d["content"]) for d in drafts)
-                budget_est = int(total_est * ratio)
+                budget_est = int(total_est * current_ratio)
                 print(ui.get("outline_drafts_truncating",
                              "   ⚠️ Outline drafts too long ({total} est. tokens, budget {budget}), truncating each draft proportionally...")
                       .format(total=total_est, budget=budget_est))
-                drafts_text = self._build_drafts_text(drafts, truncate_ratio=ratio)
-                prompt = prompts.outline_merge_prompt(count=len(drafts), drafts_text=drafts_text)
-                response = self.client.chat(system_prompt, [{"role": "user", "content": prompt}])
-                if response:
-                    return response
-            # Still failed after truncation
-            raise RuntimeError(f"Outline merge failed (context length exceeded: {e})") from e
+                print(f"   🔄 Truncation retry {retry}/{max_retries}, ratio: {current_ratio:.2%}")
 
-        # ── First attempt failed for non-token-limit reasons ──
+                drafts_text = self._build_drafts_text(drafts, truncate_ratio=current_ratio)
+                prompt = prompts.outline_merge_prompt(count=len(drafts), drafts_text=drafts_text)
+                try:
+                    response = self.client.chat(system_prompt, [{"role": "user", "content": prompt}])
+                    if response:
+                        return response
+                except ContextLengthExceededError as retry_exc:
+                    last_exc = retry_exc
+                    continue
+
+            # All truncation retries exhausted
+            raise RuntimeError(f"Outline merge failed (context length exceeded after {max_retries} retries: {last_exc})") from last_exc
+
+        # ── First attempt succeeded but returned empty response ──
         raise RuntimeError("Outline merge failed")
 
     def generate_volume_outline(self, plan: dict, master_outline: str, volume_num: int,

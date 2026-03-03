@@ -62,8 +62,11 @@ class ContextLengthExceededError(RuntimeError):
         if max_match:
             max_tokens = int(max_match.group(1))
 
-        # "your request has 42685 input tokens" 或 "value=42685"
+        # "your request has 42685 input tokens" or "value=42685"
+        # or OpenAI format: "your messages resulted in 130000 tokens"
         input_match = re.search(r'has (\d+) (?:input )?tokens', error_message)
+        if not input_match:
+            input_match = re.search(r'resulted in (\d+) tokens', error_message)
         if not input_match:
             input_match = re.search(r'value=(\d+)', error_message)
         if input_match:

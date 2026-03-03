@@ -1,8 +1,8 @@
-# 用户本地配置（含 API Key 等敏感信息，不要提交到 git）
-# 参考 user_config.example.json 创建
+# User local config (contains API Key and other sensitive info, do not commit to git)
+# Create based on user_config.example.json
 user_config.json
 
-# Local API 后端（仅本地使用，不提交）
+# Local API backend (local use only, do not commit)
 llm_local.py
 
 # Python
@@ -14,7 +14,7 @@ build/
 .eggs/
 *.egg
 
-# 输出目录（小说内容）
+# Output directory (novel content)
 output/
 
 # IDE
@@ -23,6 +23,6 @@ output/
 *.swp
 *.swo
 
-# 系统文件
+# System files
 .DS_Store
 Thumbs.db
