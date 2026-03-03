@@ -1,0 +1,49 @@
+{
+    "_comment": "Per-novel config — place this file as novel_config.json inside your novel's project directory",
+    "_usage": "Only include fields you want to override for THIS novel. API/path settings are ignored here.",
+    "_loading_order": "config.py defaults -> user_config.json (global) -> novel_config.json (per-novel)",
+
+    "_section_1": "===== Generation Parameters =====",
+    "TEMPERATURE": 0.7,
+    "TOP_P": 0.6,
+    "TOP_K": 20,
+    "REPETITION_PENALTY": 1.05,
+    "MAX_OUTPUT_TOKENS": 32768,
+    "MAX_INPUT_TOKENS": 32768,
+
+    "_section_2": "===== Writing Parameters =====",
+    "CHAPTER_MIN_WORDS": 3000,
+    "CHAPTER_MAX_WORDS": 4000,
+    "CHAPTER_WORD_COUNT_CHECK": true,
+    "MAX_WORD_COUNT_RETRIES": 2,
+    "CHAPTER_SPLIT_THRESHOLD": 1.5,
+    "RECENT_CHAPTERS_FOR_CONTEXT": 5,
+
+    "_section_3": "===== Multi-Draft Outline =====",
+    "OUTLINE_DRAFT_COUNT": 3,
+
+    "_section_4": "===== Quality Review =====",
+    "ENABLE_PARALLEL_REVIEW": true,
+    "REVIEW_CONFIDENCE_THRESHOLD": 60,
+    "MAX_REVIEW_RETRIES": 2,
+
+    "_section_5": "===== Polish Loop =====",
+    "ENABLE_POLISH_LOOP": true,
+    "MAX_POLISH_ITERATIONS": 2,
+    "POLISH_QUALITY_THRESHOLD": 8,
+
+    "_section_6": "===== Workflow Control =====",
+    "ENABLE_VOLUME_CHECKPOINT": true,
+    "ENABLE_FINAL_SUMMARY": true,
+    "LAZY_MODE": false,
+
+    "_section_7": "===== Quote Style (per-novel) =====",
+    "QUOTE_STYLE": "auto",
+    "INNER_QUOTE_STYLE": "auto",
+
+    "_section_8": "===== Concurrency & Retries =====",
+    "MAX_PARALLEL_WORKERS": 3,
+    "MAX_RETRIES": 5,
+    "RETRY_DELAY": 2,
+    "MAX_PLANNING_ROUNDS": 20
+}

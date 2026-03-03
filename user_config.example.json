@@ -1,0 +1,56 @@
+{
+    "_comment": "User config template - copy as user_config.json and modify as needed (git-ignored)",
+    "_usage": "Only keep fields you want to override; unlisted fields use defaults from config.py",
+
+    "_section_1": "===== Project Paths =====",
+    "OUTPUT_BASE_DIR": "output",
+
+    "_section_2": "===== LLM API Settings =====",
+    "API_MODE": "openai",
+    "OPENAI_API_KEY": "your-openai-api-key-here",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "OPENAI_MODEL": "gpt-4o",
+
+    "_section_2b": "===== Local API (if using 'local' mode) =====",
+    "LOCAL_API_URL": "",
+    "LOCAL_API_KEY": "",
+    "LOCAL_WSID": "",
+    "LOCAL_MODEL_MARKER": "",
+
+    "_section_3": "===== Generation Parameters =====",
+    "STREAM_MODE": true,
+    "TEMPERATURE": 0.7,
+    "TOP_P": 0.6,
+    "TOP_K": 20,
+    "REPETITION_PENALTY": 1.05,
+    "MAX_OUTPUT_TOKENS": 32768,
+    "MAX_INPUT_TOKENS": 32768,
+
+    "_section_4": "===== Writing Parameters =====",
+    "CHAPTER_MIN_WORDS": 3000,
+    "CHAPTER_MAX_WORDS": 4000,
+    "RECENT_CHAPTERS_FOR_CONTEXT": 5,
+
+    "_section_5": "===== Multi-Draft Outline =====",
+    "OUTLINE_DRAFT_COUNT": 3,
+
+    "_section_6": "===== Quality Review =====",
+    "ENABLE_PARALLEL_REVIEW": true,
+    "REVIEW_CONFIDENCE_THRESHOLD": 80,
+    "MAX_REVIEW_RETRIES": 2,
+
+    "_section_7": "===== Polish Loop =====",
+    "ENABLE_POLISH_LOOP": true,
+    "MAX_POLISH_ITERATIONS": 2,
+    "POLISH_QUALITY_THRESHOLD": 8,
+
+    "_section_8": "===== Workflow Control =====",
+    "ENABLE_VOLUME_CHECKPOINT": true,
+    "ENABLE_FINAL_SUMMARY": true,
+
+    "_section_9": "===== Concurrency & Retries =====",
+    "MAX_PARALLEL_WORKERS": 3,
+    "MAX_RETRIES": 5,
+    "RETRY_DELAY": 2,
+    "MAX_PLANNING_ROUNDS": 20
+}
