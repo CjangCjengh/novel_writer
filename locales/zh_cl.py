@@ -66,6 +66,24 @@ UI.update({
 
     "select_language": "\n🌐 擇書之語：",
     "lang_choice_prompt": "\n👤 擇之（1-{max}）：",
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 汝已撰幾章？請入其數: ",
+    "ask_chapter_count_invalid": "❌ 請入一有效之正整數。",
+    "created_empty_chapters": "\n\U0001f4c2 Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": """
+🔍 檢視已填章回...""",
+    "filled_chapter_ok": "   ✅ 第{num}回：{words} 字",
+    "filled_chapter_empty": "   ⚠️ 第{num}回：空白（將略之）",
+    "all_chapters_empty": "❌ 諸章回皆空。將自始而為。",
+    "skipping_chapter_writing": """
+⏩ 第{num}回：已撰，略過...""",
+    "running_post_process_existing": "   🔄 Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": """
+✅ 既有 {count} 回皆已處理。將自第 {next} 回起始創作。""",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you are done, press Enter to continue...",
+
     "phase_planning_title": "\n📝 壹　籌謀",
     "planner_prefix": "\n🤖 謀者曰：\n",
     "user_prefix": "👤 君：",
@@ -292,6 +310,30 @@ UI.update({
     "outline_style_dramatic": "戲劇張力",
     "outline_style_literary": "文學深蘊",
     "outline_style_commercial": "商業疾節",
+
+    # -- 續寫既有章回 --
+    "ask_existing_chapters": "\n📝 汝是否已手書數章？(y/n): ",
+    "ask_chapter_count": "📚 汝已撰幾章？請入其數: ",
+    "ask_chapter_count_invalid": "❌ 請入一有效之正整數。",
+    "created_empty_chapters": "\n📂 已於下列路徑建 {count} 空白章回：\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ 請將所撰章回之文錄入上列文牘，畢則按Enter以續...",
+    "checking_filled_chapters": "\n🔍 檢視已填章回...",
+    "filled_chapter_ok": "   ✅ 第{num}回：{words} 字",
+    "filled_chapter_empty": "   ⚠️ 第{num}回：空白（將略之）",
+    "all_chapters_empty": "❌ 諸章回皆空。將自始而為。",
+    "continue_scanning": "\n🔍 搜檢既有章回...",
+    "continue_found_chapters": "📖 得既有章回 {count} 篇。",
+    "continue_reading_chapters": "📚 讀取既有章回以立脈絡...",
+    "continue_chapter_read": "   ✅ 第{num}回：{words} 字",
+    "continue_summary_generating": "🤖 撮取既有章回之要...",
+    "continue_summary_done": "✅ 章回提要已成。據既有之文而行規劃。",
+    "continue_planning_title": "\n📝 規劃（據既有 {count} 回）",
+    "continue_outline_context": "\n📋 綱目將納既有 {count} 回之文。",
+    "continue_writing_from": "\n✍️ 將自第 {next_chapter} 回起筆。",
+    "skipping_chapter_writing": "\n⏩ 第{num}回：已撰，略過...",
+    "existing_chapters_processed": "\n✅ 既有 {count} 回皆已處理。將自第 {next} 回起始創作。",
+    "running_post_process_existing": "   🔄 第{num}回後處理進行中（伏筆追蹤、提要更新）...",
 })
 PROMPTS = dict(_BASE_PROMPTS)
 PROMPTS.update({
@@ -342,6 +384,8 @@ PROMPTS.update({
 七、文風 - {has_style}
 八、要角（至少主人公之概） - {has_characters}
 九、世界 - {has_world}
+
+**要者**：若問者令汝決某項（如「文體由汝定之」、「風格隨汝」，或徑曰「汝自決之」），則此等項當視為**已足**，勿列於「missing_items」中。唯問者既未指明、亦未委於汝之項，方為真缺。若諸項皆已指明或委託，則以「is_enough」為true。
 
 以JSON覆之：
 {{
@@ -580,10 +624,10 @@ PROMPTS.update({
 - 體：{genre}
 - 每章字：{chapter_words}
 
-## 此卷於總綱中之述
+## 卷定位
 {volume_info}
 
-## 總綱（全本，以觀全局）
+## 總綱（全本 — 從中尋第{volume_num}卷之述以為基）
 {master_outline}
 
 成此卷章級詳綱。每章含：
@@ -927,6 +971,124 @@ PROMPTS.update({
         "一句一段，標題標簽，皆用{native_name}，不可雜以他語。"
         "惟引用專名術語，方可例外。"
     ),
+
+    # -- 續寫既有章回 --
+    "planner_continue_system": """汝乃資深說部策劃編纂。讀者已撰就小說若干章回。
+汝之職責乃理解既有之文，助讀者籌劃後續情節之展開。
+
+汝已得既有章回之撮要。據此既有之文，汝須：
+1. 領會既定之人物、世界觀、格調與情節走向
+2. 與讀者商議故事往後之發展方向
+3. 協助擬定一份與既有內容相符之完整小說計劃
+4. 尊重既有之文——不得與既定之設定相悖
+
+須確定之核心要素（部分或已從既有章回中明瞭）：
+1. **類型/題材**：或已從既有之文中昭然可見
+2. **核心主旨**：小說欲表達之要義
+3. **目標字數與結構**：總字數、每章字數、預計總章回數、卷數
+4. **敘事視角**：應與既有章回相一致
+5. **核心標籤**：三至五枚關鍵標籤
+6. **一語概括**：一語總括全書
+7. **三幕概要**：開篇（已部分完成）、發展、結局概述
+8. **行文風格**：應與既有章回相一致
+9. **禁忌事項**：不得出現之內容
+10. **主要人物**：自既有章回中提取，兼規劃新角色
+11. **世界框架**：自既有章回中提取，兼加擴展
+
+注意事項：
+- 每次僅問二三相關之問題
+- 指出汝自既有章回中所知之內容
+- 將問題聚焦於既有內容中尚未明確之方面
+- 保持友善、專業之對話風格""",
+    "planner_continue_first_question": """汝好！吾已閱汝既有 {chapter_count} 回之摘要。🎉
+
+以下乃吾目前所知：
+{existing_summary}
+
+今，讓吾等規劃後續！吾有數問：
+
+1. 汝計此書總共幾回？
+2. 後續情節，汝有何想法？
+3. 汝欲保持目前節奏，抑或欲有所變？""",
+    "planner_continue_summarize": """據既有章回之撮要及吾等對話中所集之資訊，擬定一份完整之小說計劃。
+計劃須與既有章回相符。three_act_summary.beginning當述既有章回中已然發生之事。
+
+既有章回撮要：
+{chapter_summaries}
+
+請嚴格依下列JSON格式輸出，勿添其他內容：
+{{
+    "title": "書名",
+    "genre": "類型/題材",
+    "theme": "核心主旨（一段話）",
+    "target_words": "目標總字數",
+    "chapter_words": "每章字數範圍",
+    "total_chapters": "預計總章回數（含既有者）",
+    "volumes": "卷數與分卷",
+    "pov": "敘事視角（須與既有章回一致）",
+    "tags": "核心標籤（以逗號分隔）",
+    "one_line_summary": "一語概括",
+    "three_act_summary": {{
+        "beginning": "開篇（總括既有章回中已發生之事）",
+        "middle": "發展（中段概述）",
+        "end": "結局（結局概述）"
+    }},
+    "style_guide": "行文風格之要求與規範（須與既有章回相符）",
+    "taboos": "禁忌事項",
+    "main_characters": [
+        {{
+            "name": "姓名",
+            "role": "角色定位（主角/反派/配角等）",
+            "age": "年歲（須從已有章回推斷——如為學堂學生則應為~15-18歲，不得任意編造）",
+            "appearance": "容貌描述",
+            "personality": "性情描述",
+            "background": "身世背景",
+            "motivation": "核心動機",
+            "arc": "角色弧線/成長軌跡"
+        }}
+    ],
+    "world_setting": "世界框架描述",
+    "synopsis": "小說簡介（供出版之用）"
+}}""",
+    "chapter_summary_prompt": """請閱以下章回並生摘要。
+
+## 第 {chapter_num} 回
+{chapter_text}
+
+請輸出 JSON：
+{{
+    "chapter_num": {chapter_num},
+    "title": "標題",
+    "summary": "情節摘要",
+    "characters": ["角色"],
+    "setting": "場景/地點（如：學堂、中世紀城堡、太空站）",
+    "time_period": "時代/年齡背景（如：現代學生約十六歲、古代王朝、未來二二〇〇年代）。如能辨別請註明角色年齡範圍。",
+    "key_events": ["事件"],
+    "unresolved_hooks": ["伏筆"],
+    "pov": "視角",
+    "tone": "基調"
+}}
+
+只輸出 JSON。""",
+    "master_outline_continue_prompt": """請據以下小說計劃為全書擬定總綱。
+要者：前{existing_count}章已撰就。大綱須與既有章回之內容相符，不得生矛盾。
+
+## 小說計劃
+{plan_json}
+
+## 既有章回撮要
+{chapter_summaries}
+
+請生成涵蓋諸卷之總綱（Markdown格式）。每卷須含：
+- 主線情節描述
+- 核心衝突
+- 關鍵事件（編號列表）
+- 主要人物狀態
+- 本卷高潮
+- 本卷懸念
+- 與次卷之銜接
+
+確保前數章回之大綱準確映照既有之文。""",
 })
 
 # ============================================================

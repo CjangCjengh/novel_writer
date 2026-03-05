@@ -68,6 +68,20 @@ UI.update({
     "batch_novel_error": "\n❌ 生成小说「{name}」时出错：{error}",
     "batch_all_done": "\n🎉 批量完成！共 {total} 部小说全部生成完毕。",
 
+        # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd 你是否已经写好了一些章节？(y/n，回车为否): ",
+    "ask_chapter_count": "📚 你写了几章？请输入数字: ",
+    "ask_chapter_count_invalid": "❌ 请输入一个有效的正整数。",
+    "created_empty_chapters": "\n\U0001f4c2 已在以下路径创建 {count} 个空白章节文件:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": "\n\U0001f50d 正在检查已填入的章节文件...",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空（将被跳过）",
+    "all_chapters_empty": "❌ 所有章节文件均为空。将按正常流程继续。",
+    "skipping_chapter_writing": "\n⏩ 第{num}章：已有内容，跳过创作...",
+    "running_post_process_existing": "   🔄 对第{num}章执行后处理（伏笔追踪、摘要更新）...",
+    "existing_chapters_processed": "\n✅ 全部 {count} 个已有章节处理完成。将从第 {next} 章开始AI创作。",
+    "wait_fill_chapters": "\n✍️ 请将你写好的章节内容粘贴到上面的文件中。\n   填完后按回车继续...",
     # -- Language selection --
     "select_language": "\n🌐 请选择小说使用的语言：",
     "lang_choice_prompt": "\n👤 请输入选择 (1-{max}): ",
@@ -315,6 +329,30 @@ UI.update({
     "outline_style_dramatic": "戏剧张力型",
     "outline_style_literary": "文学深度型",
     "outline_style_commercial": "商业节奏型",
+
+    # -- Continue from existing chapters --
+    "ask_existing_chapters": "\n📝 你是否已经手动写好了一些章节？(y/n): ",
+    "ask_chapter_count": "📚 你写了几章？请输入数字: ",
+    "ask_chapter_count_invalid": "❌ 请输入一个有效的正整数。",
+    "created_empty_chapters": "\n📂 已在以下路径创建 {count} 个空白章节文件:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ 请将你已写好的章节内容粘贴到上述文件中，完成后按回车继续...",
+    "checking_filled_chapters": "\n🔍 正在检查已填入的章节文件...",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空白（将被跳过）",
+    "all_chapters_empty": "❌ 所有章节文件均为空白。将以全新模式开始。",
+    "continue_scanning": "\n🔍 正在扫描已有章节...",
+    "continue_found_chapters": "📖 找到 {count} 个已有章节。",
+    "continue_reading_chapters": "📚 正在读取已有章节以构建上下文...",
+    "continue_chapter_read": "   ✅ 第{num}章：{words} 字",
+    "continue_summary_generating": "🤖 正在生成已有章节的摘要...",
+    "continue_summary_done": "✅ 章节摘要已生成。开始基于已有内容进行规划。",
+    "continue_planning_title": "\n📝 规划阶段（基于已有 {count} 章）",
+    "continue_outline_context": "\n📋 大纲将整合已有的 {count} 个章节内容。",
+    "continue_writing_from": "\n✍️ 将从第 {next_chapter} 章开始写作。",
+    "skipping_chapter_writing": "\n⏩ 第{num}章：已撰写，跳过创作...",
+    "existing_chapters_processed": "\n✅ 已处理全部 {count} 个已有章节。AI将从第 {next} 章开始创作。",
+    "running_post_process_existing": "   🔄 正在对第{num}章执行后处理（hook追踪、摘要更新）...",
 })
 
 # ============================================================
@@ -370,6 +408,8 @@ PROMPTS.update({
 7. 文风要求 - {has_style}
 8. 主要角色（至少有主角概念）- {has_characters}
 9. 世界观框架 - {has_world}
+
+**重要**：当用户让你来决定某些项时（如"体裁你来定"、"风格随你"、"至于女主，你自己决定"，或者直接说"你来决定"），应将这些项视为**已满足**，不要列入"missing_items"。只有用户既未指定、也未委托给你的项才算真正缺失。若所有项都已被用户指定或委托，则将"is_enough"设为true。
 
 请用JSON格式回复:
 {{
@@ -609,10 +649,10 @@ PROMPTS.update({
 - 类型：{genre}
 - 每章字数：{chapter_words}
 
-## 该卷在总大纲中的描述
+## 卷定位提示
 {volume_info}
 
-## 总大纲（完整，用于把握全局）
+## 总大纲（完整 — 请从中找到第{volume_num}卷的内容作为基础）
 {master_outline}
 
 请为这一卷生成详细的章节级大纲，每章包含：
@@ -641,7 +681,7 @@ PROMPTS.update({
     "genre_fantasy_keywords": ["玄幻", "修仙", "仙侠", "魔法", "奇幻"],
     "genre_scifi_keywords": ["科幻", "未来", "赛博", "太空", "科技"],
 
-    "outline_merge_prompt": """以下是同一部小说的
+    "outline_merge_prompt": """以下是同一部小说的{count}份不同总大纲草案，每份都有不同的风格取向。
 请创建一份**合并总大纲**，要求：
 1. 从各方案中取最强的结构性元素
 2. 融合最佳的情节创意和角色弧线
@@ -958,6 +998,124 @@ PROMPTS.update({
         "每一句话、每一段、每个标题和标签都必须使用{native_name}。"
         "除非是引用专有名词或术语，否则不要混入其他语言。"
     ),
+
+    # -- Continue from existing chapters --
+    "planner_continue_system": """你是一位资深小说策划编辑。用户已经写好了小说的部分章节。
+你的任务是理解已有内容，帮助用户规划后续的故事发展。
+
+你已获得已有章节的摘要。基于这些已有内容，你需要：
+1. 理解已确立的角色、世界观、基调和情节走向
+2. 与用户讨论故事接下来的发展方向
+3. 帮助填写一份与已有内容保持一致的完整小说计划
+4. 尊重已有内容——不得与已确立的设定产生矛盾
+
+需要确定的核心要素（部分可能已从已有章节中明确）：
+1. **类型/题材**：可能已从已有内容中显而易见
+2. **核心主题**：小说想要表达的主旨
+3. **目标字数与结构**：总字数、每章字数、预计总章数、卷数
+4. **叙事视角**：应与已有章节保持一致
+5. **核心标签**：3-5个关键标签
+6. **一句话概括**：一句话总结全书
+7. **三幕概要**：开篇（已部分完成）、发展、结局概述
+8. **写作风格**：应与已有章节保持一致
+9. **禁忌事项**：不得出现的内容
+10. **主要角色**：从已有章节中提取 + 规划新角色
+11. **世界框架**：从已有章节中提取 + 扩展
+
+注意事项：
+- 每次只问2-3个相关问题
+- 指出你从已有章节中了解到的内容
+- 将问题聚焦在已有内容中尚未明确的方面
+- 保持友好、专业的对话风格""",
+    "planner_continue_first_question": """你好！我已经阅读了你已有的 {chapter_count} 章内容的摘要。🎉
+
+以下是我目前了解到的信息：
+{existing_summary}
+
+现在，让我们来规划后续内容！我有几个问题：
+
+1. 你计划这部小说总共写多少章？
+2. 对于接下来的情节，你有什么具体的想法或方向吗？
+3. 你希望保持目前的叙事节奏，还是想做一些改变？""",
+    "planner_continue_summarize": """基于已有章节的摘要和我们对话中收集到的信息，生成一份完整的小说计划。
+计划必须与已有章节保持一致。对于three_act_summary.beginning，描述已有章节中实际发生的事情。
+
+已有章节摘要：
+{chapter_summaries}
+
+请严格按照以下JSON格式输出，不要有其他内容：
+{{
+    "title": "书名",
+    "genre": "类型/题材",
+    "theme": "核心主题（一段话）",
+    "target_words": "目标总字数",
+    "chapter_words": "每章字数范围",
+    "total_chapters": "预计总章数（包括已写的）",
+    "volumes": "卷数和分卷",
+    "pov": "叙事视角（必须与已有章节一致）",
+    "tags": "核心标签（逗号分隔）",
+    "one_line_summary": "一句话概括",
+    "three_act_summary": {{
+        "beginning": "开篇（总结已有章节中已发生的事情）",
+        "middle": "发展（中间部分概述）",
+        "end": "结局（结局概述）"
+    }},
+    "style_guide": "写作风格要求和规范（匹配已有章节）",
+    "taboos": "禁忌事项",
+    "main_characters": [
+        {{
+            "name": "名字",
+            "role": "角色定位（主角/反派/配角等）",
+            "age": "年龄（必须从已有章节推断——如果是高中生则应为~15-18岁，不得随意编造）",
+            "appearance": "外貌描述",
+            "personality": "性格描述",
+            "background": "背景故事",
+            "motivation": "核心动机",
+            "arc": "角色弧线/成长轨迹"
+        }}
+    ],
+    "world_setting": "世界框架描述",
+    "synopsis": "小说简介（用于出版）"
+}}""",
+    "chapter_summary_prompt": """请阅读以下章节文本并生成一份简洁的摘要。
+
+## 第 {chapter_num} 章
+{chapter_text}
+
+请输出 JSON 摘要：
+{{
+    "chapter_num": {chapter_num},
+    "title": "简短标题",
+    "summary": "2-3 句情节摘要",
+    "characters": ["出场角色名"],
+    "setting": "场景/地点（如：高中校园、中世纪城堡、太空站）",
+    "time_period": "时代/年龄背景（如：现代高中生约16岁、古代王朝、未来2200年代）。如能辨别请注明角色年龄范围。",
+    "key_events": ["关键事件1", "关键事件2"],
+    "unresolved_hooks": ["未解决的伏笔/悬念"],
+    "pov": "视角角色或叙述方式",
+    "tone": "本章的整体基调/氛围"
+}}
+
+只输出 JSON，不要其他内容。""",
+    "master_outline_continue_prompt": """请基于以下小说计划为整本书创建总纲。
+重要：前{existing_count}章已经写好。大纲必须与已有章节内容保持一致，不得产生矛盾。
+
+## 小说计划
+{plan_json}
+
+## 已有章节摘要
+{chapter_summaries}
+
+请生成覆盖所有卷的总纲（Markdown格式）。每卷需要包含：
+- 主线剧情描述
+- 核心冲突
+- 关键事件（编号列表）
+- 主要角色状态
+- 本卷高潮
+- 本卷悬念
+- 与下一卷的衔接
+
+确保前面章节的大纲准确反映已有内容。""",
 })
 
 # ============================================================

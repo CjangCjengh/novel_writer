@@ -60,6 +60,27 @@ def planner_summarize() -> str:
     return get_prompts()["planner_summarize"]
 
 
+# --- Continue from existing chapters ---
+def planner_continue_system() -> str:
+    return _with_lang(get_prompts()["planner_continue_system"])
+
+
+def planner_continue_first_question(**kwargs) -> str:
+    return get_prompts()["planner_continue_first_question"].format(**kwargs)
+
+
+def planner_continue_summarize(**kwargs) -> str:
+    return get_prompts()["planner_continue_summarize"].format(**kwargs)
+
+
+def chapter_summary_prompt(**kwargs) -> str:
+    return get_prompts()["chapter_summary_prompt"].format(**kwargs)
+
+
+def master_outline_continue_prompt(**kwargs) -> str:
+    return get_prompts()["master_outline_continue_prompt"].format(**kwargs)
+
+
 def outline_system() -> str:
     return _with_lang(get_prompts()["outline_system"])
 

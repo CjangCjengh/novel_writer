@@ -69,6 +69,24 @@ UI.update({
 
     "select_language": "\n🌐 小説で使用する言語を選択してください：",
     "lang_choice_prompt": "\n👤 選択を入力してください (1-{max}): ",
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 何章書きましたか？数字を入力してください: ",
+    "ask_chapter_count_invalid": "❌ 有効な正の整数を入力してください。",
+    "created_empty_chapters": "\n\U0001f4c2 Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": """
+🔍 記入済みの章ファイルを確認中...""",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 文字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空（スキップされます）",
+    "all_chapters_empty": "❌ すべての章ファイルが空です。最初から開始します。",
+    "skipping_chapter_writing": """
+⏩ 第{num}章：執筆済み、スキップ中...""",
+    "running_post_process_existing": "   🔄 Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": """
+✅ 既存の {count} 章をすべて処理しました。第 {next} 章からAI執筆を開始します。""",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you are done, press Enter to continue...",
+
     "phase_planning_title": "\n📝 フェーズ1：小説企画",
     "planner_prefix": "\n🤖 企画アシスタント：\n",
     "user_prefix": "👤 あなた：",
@@ -292,6 +310,30 @@ UI.update({
     "outline_style_dramatic": "ドラマチック・高テンション型",
     "outline_style_literary": "文学・キャラクター重視型",
     "outline_style_commercial": "商業・テンポ重視型",
+
+    # -- 既存の章から続ける --
+    "ask_existing_chapters": "\n📝 すでに手書きした章がありますか？(y/n): ",
+    "ask_chapter_count": "📚 何章書きましたか？数字を入力してください: ",
+    "ask_chapter_count_invalid": "❌ 有効な正の整数を入力してください。",
+    "created_empty_chapters": "\n📂 以下のパスに {count} 個の空白章ファイルを作成しました：\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ 上記のファイルに執筆済みの章の内容を貼り付けて、完了したらEnterを押してください...",
+    "checking_filled_chapters": "\n🔍 記入済みの章ファイルを確認中...",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 文字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空（スキップされます）",
+    "all_chapters_empty": "❌ すべての章ファイルが空です。最初から開始します。",
+    "continue_scanning": "\n🔍 既存の章をスキャン中...",
+    "continue_found_chapters": "📖 既存の章 {count} 件を発見しました。",
+    "continue_reading_chapters": "📚 既存の章を読み込みコンテキストを構築中...",
+    "continue_chapter_read": "   ✅ 第{num}章：{words} 文字",
+    "continue_summary_generating": "🤖 既存の章の要約を生成中...",
+    "continue_summary_done": "✅ 章の要約を生成しました。既存の内容に基づいて企画を開始します。",
+    "continue_planning_title": "\n📝 企画フェーズ（既存の {count} 章に基づく）",
+    "continue_outline_context": "\n📋 アウトラインは既存の {count} 章を組み込みます。",
+    "continue_writing_from": "\n✍️ 第{next_chapter}章から執筆を開始します。",
+    "skipping_chapter_writing": "\n⏩ 第{num}章：執筆済み、スキップ中...",
+    "existing_chapters_processed": "\n✅ 既存の {count} 章をすべて処理しました。第 {next} 章からAI執筆を開始します。",
+    "running_post_process_existing": "   🔄 第{num}章の後処理を実行中（フック追跡、要約更新）...",
 })
 
 # ============================================================
@@ -347,6 +389,8 @@ PROMPTS.update({
 7. 文体要件 - {has_style}
 8. 主要キャラクター（少なくとも主人公の概念）- {has_characters}
 9. 世界観フレームワーク - {has_world}
+
+**重要**：ユーザーが特定の項目をあなたに任せた場合（例：「ジャンルは任せる」「設定は好きにして」「ヒロインはあなたが決めて」、または単に「任せる」）、それらの項目は**充足済み**として扱い、「missing_items」に含めないでください。ユーザーが指定も委任もしていない項目のみが真の未充足です。全項目がユーザーによる指定または委任済みなら「is_enough」をtrueにしてください。
 
 JSON形式で回答してください：
 {{
@@ -586,10 +630,10 @@ Markdown形式で出力してください。含めるべき内容：
 - ジャンル：{genre}
 - 各章の文字数：{chapter_words}
 
-## マスターアウトラインにおけるこの巻の描写
+## 巻の位置ガイド
 {volume_info}
 
-## マスターアウトライン（完全版、全体把握用）
+## マスターアウトライン（完全版 — 第{volume_num}巻の該当部分を見つけて基礎としてください）
 {master_outline}
 
 この巻の詳細な章レベルアウトラインを生成してください。各章に含むべき内容：
@@ -936,6 +980,124 @@ Markdown形式で完全なサマリーレポートを生成してください。
         "すべての文、段落、見出し、ラベルは{native_name}でなければなりません。"
         "固有名詞や専門用語を引用する場合を除き、他の言語を混ぜないでください。"
     ),
+
+    # -- 既存の章から続ける --
+    "planner_continue_system": """あなたはシニア小説企画編集者です。ユーザーはすでに小説のいくつかの章を執筆しています。
+あなたの任務は、既存のコンテンツを理解し、ユーザーのストーリーの続きの計画を手助けすることです。
+
+既存の章の要約が提供されています。この既存コンテンツに基づいて、以下を行う必要があります：
+1. 確立されたキャラクター、世界観、トーン、プロットの方向性を理解する
+2. ユーザーと今後のストーリー展開について議論する
+3. 既存コンテンツと一貫性のある完全な小説プランの作成を支援する
+4. 既存コンテンツを尊重する——すでに確立された設定と矛盾しないこと
+
+決定すべき核心要素（既存の章から明らかなものもある）：
+1. **ジャンル/タイプ**：既存コンテンツから明らかな場合がある
+2. **核心テーマ**：小説が表現したいこと
+3. **目標文字数と構成**：総文字数、章あたりの文字数、推定総章数、巻数
+4. **視点**：既存の章と一致させること
+5. **コアタグ**：3-5個のキータグ
+6. **一行要約**：一文で本全体を要約
+7. **三幕構成要約**：序盤（すでに部分的に執筆済み）、中盤、終盤の概要
+8. **文体**：既存の章と一致させること
+9. **タブー**：含めてはならない内容
+10. **主要キャラクター**：既存から抽出＋新規を計画
+11. **世界設定**：既存から抽出＋拡張
+
+注意事項：
+- 一度に2-3個の関連質問のみ
+- 既存の章から把握した内容を認識していることを示す
+- 既存コンテンツからまだ明確でない点に質問を集中させる
+- フレンドリーでプロフェッショナルな会話スタイルを維持""",
+    "planner_continue_first_question": """こんにちは！既存の {chapter_count} 章の要約を読みました。🎉
+
+これまでに把握した内容：
+{existing_summary}
+
+さあ、続きを計画しましょう！いくつか質問があります：
+
+1. この小説は全体で何章の予定ですか？
+2. 今後の展開について、具体的なアイデアはありますか？
+3. 現在の語りのペースを維持したいですか、それとも変更したいですか？""",
+    "planner_continue_summarize": """既存の章の要約と会話で収集した情報に基づき、完全な小説プランを生成してください。
+プランは既存の章と一貫性がなければなりません。three_act_summary.beginningには、既存の章で実際に起こったことを記述してください。
+
+既存の章の要約：
+{chapter_summaries}
+
+以下のJSON形式で厳密に出力してください。他の内容は不要です：
+{{
+    "title": "書名",
+    "genre": "ジャンル/タイプ",
+    "theme": "核心テーマ（一段落）",
+    "target_words": "目標総文字数",
+    "chapter_words": "章あたりの文字数範囲",
+    "total_chapters": "推定総章数（既存を含む）",
+    "volumes": "巻数と分巻",
+    "pov": "視点（既存の章と一致させること）",
+    "tags": "コアタグ（カンマ区切り）",
+    "one_line_summary": "一行要約",
+    "three_act_summary": {{
+        "beginning": "序盤（既存の章で起こったことを要約）",
+        "middle": "中盤（展開の概要）",
+        "end": "終盤（結末の概要）"
+    }},
+    "style_guide": "文体の要件と規範（既存の章に合わせる）",
+    "taboos": "タブー事項",
+    "main_characters": [
+        {{
+            "name": "名前",
+            "role": "役割（主人公/敵役/脇役など）",
+            "age": "年齢（既存の章から推測すること。例：高校生なら~15-18歳。任意に設定しないこと）",
+            "appearance": "外見の描写",
+            "personality": "性格の描写",
+            "background": "経歴",
+            "motivation": "核心的動機",
+            "arc": "キャラクターアーク/成長の軌跡"
+        }}
+    ],
+    "world_setting": "世界設定の記述",
+    "synopsis": "小説のあらすじ（出版用）"
+}}""",
+    "chapter_summary_prompt": """以下の章のテキストを読み、簡潔な要約を生成してください。
+
+## 第 {chapter_num} 章
+{chapter_text}
+
+JSON要約を出力：
+{{
+    "chapter_num": {chapter_num},
+    "title": "短いタイトル",
+    "summary": "2-3文のプロット要約",
+    "characters": ["登場キャラクター"],
+    "setting": "場面/舞台（例：高校キャンパス、中世の城、宇宙ステーション）",
+    "time_period": "時代/年齢背景（例：現代の高校生約16歳、古代王朝、未来2200年代）。判別できる場合はキャラクターの年齢範囲を記載。",
+    "key_events": ["重要な出来事"],
+    "unresolved_hooks": ["未解決の伏線"],
+    "pov": "視点キャラクターまたは語り方",
+    "tone": "この章の全体的なトーン"
+}}
+
+JSONのみを出力。""",
+    "master_outline_continue_prompt": """以下の小説プランに基づいて、本全体のマスターアウトラインを作成してください。
+重要：最初の{existing_count}章はすでに執筆済みです。アウトラインは既存の内容と一貫性を保ち、矛盾してはなりません。
+
+## 小説プラン
+{plan_json}
+
+## 既存の章の要約
+{chapter_summaries}
+
+全巻をカバーするマスターアウトラインを生成してください（Markdown形式）。各巻に必要な要素：
+- メインプロットの説明
+- コアコンフリクト
+- キーイベント（番号付きリスト）
+- 主要キャラクターの状態
+- 巻のクライマックス
+- 巻のクリフハンガー
+- 次巻との接続
+
+前半の章のアウトラインが既存の内容を正確に反映していることを確認してください。""",
 })
 
 # ============================================================

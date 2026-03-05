@@ -69,6 +69,24 @@ UI.update({
 
     "select_language": "\n🌐 請選擇小說使用的語言：",
     "lang_choice_prompt": "\n👤 請輸入選擇 (1-{max}): ",
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 您寫了幾章？請輸入數字: ",
+    "ask_chapter_count_invalid": "❌ 請輸入一個有效的正整數。",
+    "created_empty_chapters": "\n\U0001f4c2 Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": """
+🔍 正在檢查已填入的章節檔案...""",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空白（將被跳過）",
+    "all_chapters_empty": "❌ 所有章節檔案皆為空白。將以全新模式開始。",
+    "skipping_chapter_writing": """
+⏩ 第{num}章：已撰寫，跳過創作...""",
+    "running_post_process_existing": "   🔄 Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": """
+✅ 已處理全部 {count} 個已有章節。AI 將從第 {next} 章開始創作。""",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you are done, press Enter to continue...",
+
     "phase_planning_title": "\n📝 階段一：小說策劃",
     "planner_prefix": "\n🤖 策劃助手：\n",
     "user_prefix": "👤 你：",
@@ -294,6 +312,30 @@ UI.update({
     "outline_style_dramatic": "戲劇張力型",
     "outline_style_literary": "文學深度型",
     "outline_style_commercial": "商業節奏型",
+
+    # -- Continue from existing chapters --
+    "ask_existing_chapters": "\n📝 您是否已經手動寫好了一些章節？(y/n): ",
+    "ask_chapter_count": "📚 您寫了幾章？請輸入數字: ",
+    "ask_chapter_count_invalid": "❌ 請輸入一個有效的正整數。",
+    "created_empty_chapters": "\n📂 已在以下路徑創建 {count} 個空白章節檔案:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ 請將您已寫好的章節內容貼到上述檔案中，完成後按Enter繼續...",
+    "checking_filled_chapters": "\n🔍 正在檢查已填入的章節檔案...",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空白（將被跳過）",
+    "all_chapters_empty": "❌ 所有章節檔案皆為空白。將以全新模式開始。",
+    "continue_scanning": "\n🔍 正在掃描已有章節...",
+    "continue_found_chapters": "📖 找到 {count} 個已有章節。",
+    "continue_reading_chapters": "📚 正在讀取已有章節以建立上下文...",
+    "continue_chapter_read": "   ✅ 第{num}章：{words} 字",
+    "continue_summary_generating": "🤖 正在生成已有章節的摘要...",
+    "continue_summary_done": "✅ 章節摘要已生成。開始基於已有內容進行規劃。",
+    "continue_planning_title": "\n📝 規劃階段（基於已有 {count} 章）",
+    "continue_outline_context": "\n📋 大綱將整合已有的 {count} 個章節內容。",
+    "continue_writing_from": "\n✍️ 將從第 {next_chapter} 章開始寫作。",
+    "skipping_chapter_writing": "\n⏩ 第{num}章：已撰寫，跳過創作...",
+    "existing_chapters_processed": "\n✅ 已處理全部 {count} 個已有章節。AI將從第 {next} 章開始創作。",
+    "running_post_process_existing": "   🔄 正在對第{num}章執行後處理（hook追蹤、摘要更新）...",
 })
 
 # ============================================================
@@ -351,6 +393,8 @@ PROMPTS.update({
 7. 文風要求 - {has_style}
 8. 主要角色（至少有主角概念）- {has_characters}
 9. 世界觀框架 - {has_world}
+
+**重要**：當使用者讓你來決定某些項時（如「體裁你來定」、「風格隨你」、「至於女主，你自己決定」，或直接說「你來決定」），應將這些項視為**已滿足**，不要列入「missing_items」。只有使用者既未指定、也未委託給你的項才算真正缺失。若所有項都已被使用者指定或委託，則將「is_enough」設為true。
 
 請用JSON格式回覆:
 {{
@@ -590,10 +634,10 @@ PROMPTS.update({
 - 類型：{genre}
 - 每章字數：{chapter_words}
 
-## 該卷在總大綱中的描述
+## 卷定位提示
 {volume_info}
 
-## 總大綱（完整，用於把握全域）
+## 總大綱（完整 — 請從中找到第{volume_num}卷的內容作為基礎）
 {master_outline}
 
 請為這一卷生成詳細的章節級大綱，每章包含：
@@ -941,6 +985,124 @@ PROMPTS.update({
         "每一句話、每一段、每個標題和標籤都必須使用{native_name}。"
         "除非是引用專有名詞或術語，否則不要混入其他語言。"
     ),
+
+    # -- Continue from existing chapters --
+    "planner_continue_system": """你是一位資深小說策劃編輯。用戶已經寫好了小說的部分章節。
+你的任務是理解已有內容，幫助用戶規劃後續的故事發展。
+
+你已獲得已有章節的摘要。基於這些已有內容，你需要：
+1. 理解已確立的角色、世界觀、基調和情節走向
+2. 與用戶討論故事接下來的發展方向
+3. 幫助填寫一份與已有內容保持一致的完整小說計劃
+4. 尊重已有內容——不得與已確立的設定產生矛盾
+
+需要確定的核心要素（部分可能已從已有章節中明確）：
+1. **類型/題材**：可能已從已有內容中顯而易見
+2. **核心主題**：小說想要表達的主旨
+3. **目標字數與結構**：總字數、每章字數、預計總章數、卷數
+4. **敘事視角**：應與已有章節保持一致
+5. **核心標籤**：3-5個關鍵標籤
+6. **一句話概括**：一句話總結全書
+7. **三幕概要**：開篇（已部分完成）、發展、結局概述
+8. **寫作風格**：應與已有章節保持一致
+9. **禁忌事項**：不得出現的內容
+10. **主要角色**：從已有章節中提取 + 規劃新角色
+11. **世界框架**：從已有章節中提取 + 擴展
+
+注意事項：
+- 每次只問2-3個相關問題
+- 指出你從已有章節中了解到的內容
+- 將問題聚焦在已有內容中尚未明確的方面
+- 保持友好、專業的對話風格""",
+    "planner_continue_first_question": """你好！我已經閱讀了你已有的 {chapter_count} 章內容的摘要。🎉
+
+以下是我目前了解到的資訊：
+{existing_summary}
+
+現在，讓我們來規劃後續內容！我有幾個問題：
+
+1. 你計劃這部小說總共寫多少章？
+2. 對於接下來的情節，你有什麼具體的想法或方向嗎？
+3. 你希望保持目前的敘事節奏，還是想做一些改變？""",
+    "planner_continue_summarize": """基於已有章節的摘要和我們對話中收集到的資訊，生成一份完整的小說計劃。
+計劃必須與已有章節保持一致。對於three_act_summary.beginning，描述已有章節中實際發生的事情。
+
+已有章節摘要：
+{chapter_summaries}
+
+請嚴格按照以下JSON格式輸出，不要有其他內容：
+{{
+    "title": "書名",
+    "genre": "類型/題材",
+    "theme": "核心主題（一段話）",
+    "target_words": "目標總字數",
+    "chapter_words": "每章字數範圍",
+    "total_chapters": "預計總章數（包括已寫的）",
+    "volumes": "卷數和分卷",
+    "pov": "敘事視角（必須與已有章節一致）",
+    "tags": "核心標籤（逗號分隔）",
+    "one_line_summary": "一句話概括",
+    "three_act_summary": {{
+        "beginning": "開篇（總結已有章節中已發生的事情）",
+        "middle": "發展（中間部分概述）",
+        "end": "結局（結局概述）"
+    }},
+    "style_guide": "寫作風格要求和規範（匹配已有章節）",
+    "taboos": "禁忌事項",
+    "main_characters": [
+        {{
+            "name": "名字",
+            "role": "角色定位（主角/反派/配角等）",
+            "age": "年齡（必須從已有章節推斷——如果是高中生則應為~15-18歲，不得隨意編造）",
+            "appearance": "外貌描述",
+            "personality": "性格描述",
+            "background": "背景故事",
+            "motivation": "核心動機",
+            "arc": "角色弧線/成長軌跡"
+        }}
+    ],
+    "world_setting": "世界框架描述",
+    "synopsis": "小說簡介（用於出版）"
+}}""",
+    "chapter_summary_prompt": """請閱讀以下章節文本並生成一份簡潔的摘要。
+
+## 第 {chapter_num} 章
+{chapter_text}
+
+請輸出 JSON 摘要：
+{{
+    "chapter_num": {chapter_num},
+    "title": "簡短標題",
+    "summary": "2-3 句情節摘要",
+    "characters": ["出場角色名"],
+    "setting": "場景/地點（如：高中校園、中世紀城堡、太空站）",
+    "time_period": "時代/年齡背景（如：現代高中生約16歲、古代王朝、未來2200年代）。如能辨別請註明角色年齡範圍。",
+    "key_events": ["關鍵事件1", "關鍵事件2"],
+    "unresolved_hooks": ["未解決的伏筆/懸念"],
+    "pov": "視角角色或敘述方式",
+    "tone": "本章的整體基調/氛圍"
+}}
+
+只輸出 JSON，不要其他內容。""",
+    "master_outline_continue_prompt": """請基於以下小說計劃為整本書創建總綱。
+重要：前{existing_count}章已經寫好。大綱必須與已有章節內容保持一致，不得產生矛盾。
+
+## 小說計劃
+{plan_json}
+
+## 已有章節摘要
+{chapter_summaries}
+
+請生成覆蓋所有卷的總綱（Markdown格式）。每卷需要包含：
+- 主線劇情描述
+- 核心衝突
+- 關鍵事件（編號列表）
+- 主要角色狀態
+- 本卷高潮
+- 本卷懸念
+- 與下一卷的銜接
+
+確保前面章節的大綱準確反映已有內容。""",
 })
 
 # ============================================================

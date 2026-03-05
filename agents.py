@@ -112,9 +112,10 @@ class PlannerAgent:
                             self.collected_info[item] = True
             else:
                 # JSON parse failed, fall back to direct conversation mode
+                # Keep stream enabled so the user sees real-time output
                 response = self.client.chat(
                     prompts.planner_system(),
-                    self.conversation_history
+                    self.conversation_history,
                 )
                 if not response:
                     response = ui["continue_input"]
@@ -144,6 +145,234 @@ class PlannerAgent:
         if not plan:
             # Retry once
             response = self.client.chat(prompts.planner_system(), summary_messages)
+            plan = _extract_json(response)
+            if not plan:
+                raise RuntimeError(f"Plan JSON parse failed, raw response:\n{response}")
+
+        return plan
+
+
+# ==================== Chapter Summarizer Agent ====================
+class ChapterSummarizerAgent:
+    """Summarizes existing chapters to provide context for continue-from-existing mode."""
+
+    def __init__(self):
+        self.client = get_client()
+
+    def summarize_chapter(self, chapter_num: int, chapter_text: str) -> dict | None:
+        """Generate a structured summary of a single chapter."""
+        prompt = prompts.chapter_summary_prompt(
+            chapter_num=chapter_num,
+            chapter_text=chapter_text,
+        )
+        response = self.client.chat(
+            prompts.planner_continue_system(),
+            [{"role": "user", "content": prompt}],
+        )
+        if not response:
+            return None
+        return _extract_json(response)
+
+    def summarize_all(self, chapters: list[tuple[int, str]]) -> list[dict]:
+        """Summarize multiple chapters in parallel.
+        Args:
+            chapters: List of (chapter_num, chapter_text) tuples.
+        Returns:
+            List of summary dicts, sorted by chapter_num.
+        """
+        ui = _ui()
+        summaries = []
+        with ThreadPoolExecutor(max_workers=config.MAX_PARALLEL_WORKERS) as executor:
+            future_to_num = {}
+            for ch_num, ch_text in chapters:
+                future = executor.submit(self.summarize_chapter, ch_num, ch_text)
+                future_to_num[future] = ch_num
+
+            for future in as_completed(future_to_num):
+                ch_num = future_to_num[future]
+                try:
+                    result = future.result()
+                    if result:
+                        result["chapter_num"] = ch_num
+                        summaries.append(result)
+                    else:
+                        # Fallback: generate a minimal summary
+                        summaries.append({
+                            "chapter_num": ch_num,
+                            "summary": "(Summary generation failed)",
+                        })
+                except Exception as e:
+                    summaries.append({
+                        "chapter_num": ch_num,
+                        "summary": f"(Error: {e})",
+                    })
+
+        summaries.sort(key=lambda s: s.get("chapter_num", 0))
+        return summaries
+
+
+# ==================== Continue Planner Agent ====================
+class ContinuePlannerAgent:
+    """Planner Agent for continue-from-existing mode.
+    Uses existing chapter summaries as context for planning."""
+
+    def __init__(self, chapter_summaries: list[dict]):
+        self.client = get_client()
+        self.conversation_history = []
+        self.chapter_summaries = chapter_summaries
+        self.chapter_count = len(chapter_summaries)
+        self.collected_info = {
+            "genre": False, "theme": False, "structure": False,
+            "pov": False, "tags": False, "summary": False,
+            "style": False, "characters": False, "world": False,
+        }
+        self._existing_context = ""
+
+    def _summaries_text(self) -> str:
+        """Format chapter summaries as readable text."""
+        parts = []
+        for s in self.chapter_summaries:
+            ch_num = s.get("chapter_num", "?")
+            title = s.get("title", "")
+            summary = s.get("summary", "")
+            characters = ", ".join(s.get("characters", []))
+            tone = s.get("tone", "")
+            pov = s.get("pov", "")
+            key_events = s.get("key_events", [])
+
+            setting = s.get("setting", "")
+            time_period = s.get("time_period", "")
+
+            part = f"### Chapter {ch_num}"
+            if title:
+                part += f": {title}"
+            part += f"\n{summary}"
+            if setting:
+                part += f"\nSetting: {setting}"
+            if time_period:
+                part += f"\nTime period / Age group: {time_period}"
+            if characters:
+                part += f"\nCharacters: {characters}"
+            if tone:
+                part += f"\nTone: {tone}"
+            if pov:
+                part += f"\nPOV: {pov}"
+            if key_events:
+                part += "\nKey events:\n" + "\n".join(f"  - {e}" for e in key_events)
+            parts.append(part)
+        return "\n\n".join(parts)
+
+    def _inject_context(self, messages: list[dict]) -> list[dict]:
+        """Inject existing chapter summaries into the first user message.
+
+        Many LLM APIs require messages to start with a 'user' role after
+        the system prompt, so we prepend the chapter context to the first
+        user message rather than inserting a separate assistant message."""
+        if not self._existing_context or not messages:
+            return messages
+        msgs = list(messages)
+        if msgs[0]["role"] == "user":
+            msgs[0] = {
+                "role": "user",
+                "content": f"[Existing chapter summaries]\n{self._existing_context}\n\n{msgs[0]['content']}",
+            }
+        return msgs
+
+    def start(self) -> str:
+        """Start planning with existing chapter context, return the first question."""
+        summaries_text = self._summaries_text()
+        # Store existing chapter context for injection into every LLM call
+        self._existing_context = summaries_text[:3000]
+        if len(summaries_text) > 3000:
+            self._existing_context += "\n... (truncated)"
+
+        first_question = prompts.planner_continue_first_question(
+            chapter_count=self.chapter_count,
+            existing_summary=self._existing_context,
+        )
+        return first_question
+
+    def process_user_input(self, user_input: str) -> tuple[bool, str]:
+        """Process user input. Returns (is_complete, agent_response)."""
+        ui = get_locale().UI
+        self.conversation_history.append({"role": "user", "content": user_input})
+
+        # Reuse the standard planner's check logic
+        check_prompt = prompts.planner_check_enough(
+            has_genre="\u2705" if self.collected_info["genre"] else "\u274c",
+            has_theme="\u2705" if self.collected_info["theme"] else "\u274c",
+            has_structure="\u2705" if self.collected_info["structure"] else "\u274c",
+            has_pov="\u2705" if self.collected_info["pov"] else "\u274c",
+            has_tags="\u2705" if self.collected_info["tags"] else "\u274c",
+            has_summary="\u2705" if self.collected_info["summary"] else "\u274c",
+            has_style="\u2705" if self.collected_info["style"] else "\u274c",
+            has_characters="\u2705" if self.collected_info["characters"] else "\u274c",
+            has_world="\u2705" if self.collected_info["world"] else "\u274c",
+        )
+
+        check_messages = list(self.conversation_history)
+        if check_messages and check_messages[-1]["role"] == "user":
+            check_messages[-1] = {
+                "role": "user",
+                "content": check_messages[-1]["content"] + "\n\n" + check_prompt,
+            }
+        else:
+            check_messages.append({"role": "user", "content": check_prompt})
+
+        check_messages = self._inject_context(check_messages)
+
+        check_response = self.client.chat(prompts.planner_continue_system(), check_messages)
+        if not check_response:
+            return False, ui["llm_error_retry"]
+
+        check_result = _extract_json(check_response)
+
+        if check_result and check_result.get("is_enough", False):
+            self.conversation_history.append({"role": "assistant", "content": ui["info_enough"]})
+            return True, ui["info_enough"]
+        else:
+            if check_result and "next_questions" in check_result:
+                response = check_result["next_questions"]
+                if check_result.get("missing_items"):
+                    for item in list(self.collected_info.keys()):
+                        if not any(item_name in str(check_result["missing_items"]).lower()
+                                   for item_name in [item]):
+                            self.collected_info[item] = True
+            else:
+                fallback_messages = self._inject_context(list(self.conversation_history))
+                response = self.client.chat(
+                    prompts.planner_continue_system(),
+                    fallback_messages,
+                )
+                if not response:
+                    response = ui["continue_input"]
+
+            self.conversation_history.append({"role": "assistant", "content": response})
+            return False, response
+
+    def generate_plan(self) -> dict:
+        """Generate the final novel plan based on existing chapters + conversation."""
+        summary_messages = list(self.conversation_history)
+        summarize_prompt = prompts.planner_continue_summarize(
+            chapter_summaries=self._summaries_text(),
+        )
+        if summary_messages and summary_messages[-1]["role"] == "user":
+            summary_messages[-1] = {
+                "role": "user",
+                "content": summary_messages[-1]["content"] + "\n\n" + summarize_prompt,
+            }
+        else:
+            summary_messages.append({"role": "user", "content": summarize_prompt})
+
+        summary_messages = self._inject_context(summary_messages)
+
+        response = self.client.chat(prompts.planner_continue_system(), summary_messages)
+        if not response:
+            raise RuntimeError("Plan generation failed")
+
+        plan = _extract_json(response)
+        if not plan:
+            response = self.client.chat(prompts.planner_continue_system(), summary_messages)
             plan = _extract_json(response)
             if not plan:
                 raise RuntimeError(f"Plan JSON parse failed, raw response:\n{response}")
@@ -365,6 +594,22 @@ class OutlineAgent:
 
         # ── First attempt succeeded but returned empty response ──
         raise RuntimeError("Outline merge failed")
+
+    def generate_master_outline_continue(self, plan: dict, chapter_summaries: str,
+                                         existing_count: int) -> str:
+        """Generate a master outline that incorporates existing chapter content."""
+        prompt = prompts.master_outline_continue_prompt(
+            existing_count=existing_count,
+            plan_json=json.dumps(plan, ensure_ascii=False, indent=2),
+            chapter_summaries=chapter_summaries,
+        )
+        response = self.client.chat(
+            prompts.outline_system(),
+            [{"role": "user", "content": prompt}]
+        )
+        if not response:
+            raise RuntimeError("Master outline generation (continue mode) failed")
+        return response
 
     def generate_volume_outline(self, plan: dict, master_outline: str, volume_num: int,
                                 volume_info: str) -> str:
@@ -645,7 +890,7 @@ class PostWriteAgent:
 
         response = self.client.chat(
             prompts.post_write_system(),
-            [{"role": "user", "content": prompt}]
+            [{"role": "user", "content": prompt}],
         )
         if not response:
             return None
@@ -752,7 +997,7 @@ class QualityReviewerAgent:
                 future = executor.submit(
                     self.client.chat,
                     system_prompt,
-                    [{"role": "user", "content": review_prompt_text}]
+                    [{"role": "user", "content": review_prompt_text}],
                 )
                 future_to_reviewer[future] = reviewer_name
 
@@ -814,7 +1059,7 @@ class PolishAgent:
         )
         response = self.client.chat(
             prompts.polish_evaluate_system(),
-            [{"role": "user", "content": prompt}]
+            [{"role": "user", "content": prompt}],
         )
         if not response:
             return None

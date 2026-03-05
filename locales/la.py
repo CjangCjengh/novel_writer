@@ -66,6 +66,24 @@ UI.update({
 
     "select_language": "\n🌐 Elige linguam narrationis tuae:",
     "lang_choice_prompt": "\n👤 Electionem tuam scribe (1-{max}): ",
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 Quot capita scripsisti? Numerum inscribe: ",
+    "ask_chapter_count_invalid": "❌ Quaeso numerum integrum positivum validum inscribe.",
+    "created_empty_chapters": "\n\U0001f4c2 Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": """
+🔍 Capita completa inspiciuntur...""",
+    "filled_chapter_ok": "   ✅ Caput {num}: {words} verba",
+    "filled_chapter_empty": "   ⚠️ Caput {num}: vacuum (omittetur)",
+    "all_chapters_empty": "❌ Omnia capita vacua sunt. Ab initio proceditur.",
+    "skipping_chapter_writing": """
+⏩ Caput {num}: iam scriptum, omittitur...""",
+    "running_post_process_existing": "   🔄 Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": """
+✅ Omnia {count} capita priora tractata sunt. AI a capite {next} scribet.""",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you are done, press Enter to continue...",
+
     "phase_planning_title": "\n📝 Gradus I: Consilium",
     "planner_prefix": "\n🤖 Consiliarius:\n",
     "user_prefix": "👤 Tu: ",
@@ -291,6 +309,31 @@ Totum caput ab initio rescribe, omnes quaestiones supra dictas corrigens, dum fa
     "outline_style_dramatic": "Dramaticum et Tensum",
     "outline_style_literary": "Litterarium et Personarum",
     "outline_style_commercial": "Commerciale et Celeris Rhythmi",
+
+    # -- Ab capitibus iam scriptis --
+    "ask_existing_chapters": "\n📝 Habesne capita iam manu scripta? (y/n): ",
+    "ask_chapter_count": "📚 Quot capita scripsisti? Numerum inscribe: ",
+    "ask_chapter_count_invalid": "❌ Quaeso numerum integrum positivum validum inscribe.",
+    "created_empty_chapters": "\n📂 Creata sunt {count} capita vacua in via:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ Insere textum capitum in supra dictas chartas, deinde Enter preme...",
+    "checking_filled_chapters": "\n🔍 Capita completa inspiciuntur...",
+    "filled_chapter_ok": "   ✅ Caput {num}: {words} verba",
+    "filled_chapter_empty": "   ⚠️ Caput {num}: vacuum (omittetur)",
+    "all_chapters_empty": "❌ Omnia capita vacua sunt. Ab initio proceditur.",
+    "continue_scanning": "\n🔍 Capita iam scripta perscrutantur...",
+    "continue_found_chapters": "📖 Inventa sunt {count} capita.",
+    "continue_reading_chapters": "📚 Capita leguntur ad contextum aedificandum...",
+    "continue_chapter_read": "   ✅ Caput {num}: {words} verba",
+    "continue_summary_generating": "🤖 Summarium capitum generatur...",
+    "continue_summary_done": "✅ Summaria capitum generata sunt. Consilio ex prioribus incohato.",
+    "continue_planning_title": "\n📝 Consilium (ex {count} capitibus iam scriptis)",
+    "continue_outline_context": "\n📋 Argumentum {count} capita priora comprehendet.",
+    "continue_writing_from": "\n✍️ Scriptura a capite {next_chapter} incipiet.",
+    "skipping_chapter_writing": "\n⏩ Caput {num}: iam scriptum, omittitur...",
+    "existing_chapters_processed": "\n✅ Omnia {count} capita priora tractata sunt. AI a capite {next} scribet.",
+    "running_post_process_existing": "   🔄 Caput {num} post-processio currit (uncini et summaria renovantur)...",
+    "project_status_meta": "meta",
 })
 
 PROMPTS = dict(_BASE_PROMPTS)
@@ -342,6 +385,8 @@ Index elementorum nuclei:
 7. Styli Norma - {has_style}
 8. Personae Principales (saltem conceptus protagonistae) - {has_characters}
 9. Mundi Structura - {has_world}
+
+**MAGNI MOMENTI**: Cum utens quaedam tibi committit (e.g., "genus tu decernas", "de loco tibi permitto", vel simpliciter "tu decernas"), illa ut **satis habita** tracta neque in "missing_items" inscribe. Sola quae utens nec designavit nec tibi commisit vere desunt. Si omnia vel designata vel commissa sunt, "is_enough" ad true pone.
 
 Responde in forma JSON:
 {{
@@ -581,10 +626,10 @@ Argumentum totale (Markdown) omnia volumina complectens genera. Quodque volumen:
 - Genus: {genre}
 - Verba per caput: {chapter_words}
 
-## Hoc Volumen in Argumento Totali
+## Index Voluminis
 {volume_info}
 
-## Argumentum Totale (completum)
+## Argumentum Totale (completum — partem Voluminis {volume_num} inveni et pro fundamento utere)
 {master_outline}
 
 Argumentum detallatum per capita compone. Quodque caput:
@@ -930,6 +975,124 @@ Relationem completam formato Markdown genera.""",
         "Omnis sententia, paragraphus, titulus et inscriptio in {native_name} esse debet. "
         "Noli alias linguas miscere nisi nomina propria vel terminos technicos citans."
     ),
+
+    # -- Ab capitibus iam scriptis --
+    "planner_continue_system": """Tu es editor senex narrationum consiliarius. Scriptor iam aliquot capita narrationis suae scripsit.
+Munus tuum est contenta existentia intelligere et scriptori adiuvare in continuatione fabulae suae.
+
+Summaria capitum existentium tibi praebita sunt. Ex his contentis existentibus, debes:
+1. Personas, mundum, stilum et directionem argumenti stabilitas intelligere
+2. Cum scriptore de futura directione fabulae disputare
+3. Adiuvare in plano narrationis completo conficiendo quod cum contentis existentibus consentaneum sit
+4. Contenta existentia revereri — nihil quod iam stabilitum est contradicere
+
+Elementa nuclei determinanda (quaedam iam ex capitibus existentibus clara esse possunt):
+1. **Genus/Typus**: Fortasse iam ex contentis existentibus manifestum
+2. **Thema nuclei**: Quid narratio exprimere velit
+3. **Verba destinata et Structura**: Verba totalia, verba per caput, capita totalia aestimata, volumina
+4. **Punctum narrationis**: Cum capitibus existentibus congruere debet
+5. **Notae nuclei**: 3-5 notae principales
+6. **Summarium unius lineae**: Una sententia totum librum complectens
+7. **Summarium trium actuum**: Initium (iam partim scriptum), medium, finis conspectus
+8. **Stilus scribendi**: Cum capitibus existentibus congruere debet
+9. **Vetita**: Contenta quae apparere non debent
+10. **Personae principales**: Ex existentibus extractae + novae dispositae
+11. **Mundi compages**: Ex existentibus extracta + amplificata
+
+Notae:
+- Quaque vice solum 2-3 quaestiones cognatas roga
+- Agnosce quae ex capitibus existentibus didicisti
+- Quaestiones in ea centra quae ex contentis existentibus nondum clara sunt
+- Stilum colloquii amicabilem et professionalem serva""",
+    "planner_continue_first_question": """Salve! Summaria {chapter_count} capitum iam scriptorum legi. 🎉
+
+Haec sunt quae didici:
+{existing_summary}
+
+Nunc continuationem cogitemus! Quaestiones habeo:
+
+1. Quot capita in summa cogitas?
+2. De futuris eventibus, habesne proposita?
+3. Visne rhythmum narrationis servare an mutare?""",
+    "planner_continue_summarize": """Ex summariis capitum existentium et informatione in colloquio collecta, planum narrationis completum genera.
+Planum cum capitibus existentibus consentaneum esse debet. In three_act_summary.beginning, describe quae iam in capitibus existentibus evenerunt.
+
+Summaria capitum existentium:
+{chapter_summaries}
+
+Stricte in forma JSON sequenti redde, nihil aliud:
+{{
+    "title": "Titulus libri",
+    "genre": "Genus/Typus",
+    "theme": "Thema nuclei (una paragraphus)",
+    "target_words": "Verba totalia destinata",
+    "chapter_words": "Ambitus verborum per caput",
+    "total_chapters": "Capita totalia aestimata (existentia inclusa)",
+    "volumes": "Numerus et divisio voluminum",
+    "pov": "Punctum narrationis (cum capitibus existentibus congruere debet)",
+    "tags": "Notae nuclei (virgula separatae)",
+    "one_line_summary": "Summarium unius lineae",
+    "three_act_summary": {{
+        "beginning": "Initium (summarize quae in capitibus existentibus evenerunt)",
+        "middle": "Medium (conspectus progressionis)",
+        "end": "Finis (conspectus resolutionis)"
+    }},
+    "style_guide": "Requisita et normae stili scribendi (capitibus existentibus congruere)",
+    "taboos": "Vetita",
+    "main_characters": [
+        {{
+            "name": "Nomen",
+            "role": "Munus (protagonista/antagonista/secundarius etc.)",
+            "age": "Aetas (ex capitibus existentibus inferenda — e.g. si discipuli scholae sunt, aetas ~15-18 esse debet, non arbitrarie)",
+            "appearance": "Descriptio aspectus",
+            "personality": "Descriptio indolis",
+            "background": "Historia personalis",
+            "motivation": "Motivatio nuclei",
+            "arc": "Arcus personae/trajectoria incrementi"
+        }}
+    ],
+    "world_setting": "Descriptio compagis mundi",
+    "synopsis": "Synopsis narrationis (ad publicationem)"
+}}""",
+    "chapter_summary_prompt": """Lege capitulum sequens et summarium breve genera.
+
+## Caput {chapter_num}
+{chapter_text}
+
+JSON:
+{{
+    "chapter_num": {chapter_num},
+    "title": "titulus",
+    "summary": "summarium",
+    "characters": ["personae"],
+    "setting": "locus/scaena (e.g. campus scholae, castellum mediaevale, statio spatialis)",
+    "time_period": "aetas/contextus aetatis (e.g. discipuli scholae modernae ~16 annorum, dynastia antiqua, futura 2200s). Si discerni potest, aetatem personarum indica.",
+    "key_events": ["eventus"],
+    "unresolved_hooks": ["unci"],
+    "pov": "perspectiva",
+    "tone": "tonus"
+}}
+
+Solum JSON.""",
+    "master_outline_continue_prompt": """Ex plano narrationis sequenti, conspectum magistralem totius libri crea.
+Magni momenti: Prima {existing_count} capita iam scripta sunt. Conspectus cum contentis existentibus consentaneus esse debet nec contradicere.
+
+## Planum Narrationis
+{plan_json}
+
+## Summaria Capitum Existentium
+{chapter_summaries}
+
+Conspectum magistralem omnium voluminum genera (forma Markdown). Quodque volumen requiret:
+- Descriptionem argumenti principalis
+- Conflictum nuclei
+- Eventus principales (index numeratus)
+- Statum personarum principalium
+- Culmen voluminis
+- Suspensionem voluminis
+- Connexionem cum volumine sequenti
+
+Cura ut conspectus capitum priorum contenta existentia accurate reflectat.""",
 })
 
 # ============================================================

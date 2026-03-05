@@ -40,6 +40,7 @@ from agents import (
     PlannerAgent, OutlineAgent, WorldbuildingAgent,
     StyleGuideAgent, WriterAgent, PostWriteAgent,
     QualityReviewerAgent, PolishAgent, FinalSummaryAgent,
+    ContinuePlannerAgent, ChapterSummarizerAgent,
 )
 
 
@@ -50,6 +51,8 @@ class NovelWorkflow:
         self.plan = None
         self.master_outline = None
         self.style_guide = None
+        self.chapter_summaries = None  # For continue-from-existing mode
+        self.existing_chapter_count = 0  # Number of pre-existing chapters
 
     def _ui(self) -> dict:
         """Shortcut to get current locale UI strings."""
@@ -903,63 +906,58 @@ class NovelWorkflow:
         raise RuntimeError(ui["plan_not_found_error"])
 
     def _extract_volume_info(self, volume_num: int) -> str:
-        """Extract info for the specified volume from the master outline."""
+        """Return a note telling the LLM to locate the volume in master_outline.
+
+        We no longer try to regex-extract the section because the master
+        outline can be in any language.  The full master_outline is already
+        provided in the prompt, so the LLM can find the right section."""
         if not self.master_outline:
             return f"Volume {volume_num}"
-
-        patterns = [
-            rf'(###?\s*第{volume_num}卷.*?)(?=###?\s*第\d+卷|$)',
-            rf'(第{volume_num}卷.*?)(?=第\d+卷|$)',
-            rf'(###?\s*Volume\s*{volume_num}.*?)(?=###?\s*Volume\s*\d+|$)',
-            rf'(Volume\s*{volume_num}.*?)(?=Volume\s*\d+|$)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, self.master_outline, re.DOTALL | re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
-
-        return f"Volume {volume_num} (no detailed info found in master outline)"
+        return f"(Please refer to the master outline below and locate the section for Volume {volume_num}.)"
 
     def _extract_chapter_outline(self, volume_outline: str, chapter_num: int) -> str:
-        """Extract the outline for a specific chapter from the volume outline."""
+        """Return the full volume outline and let the LLM locate the chapter.
+
+        Regex extraction is fragile across languages, so we pass the entire
+        volume outline and ask the LLM to find Chapter *chapter_num* itself."""
         if not volume_outline:
             return f"Chapter {chapter_num} (no outline info)"
-
-        patterns = [
-            rf'(###?\s*第{chapter_num}章.*?)(?=###?\s*第\d+章|$)',
-            rf'(第{chapter_num}章.*?)(?=第\d+章|$)',
-            rf'(###?\s*Chapter\s*{chapter_num}.*?)(?=###?\s*Chapter\s*\d+|$)',
-            rf'(Chapter\s*{chapter_num}.*?)(?=Chapter\s*\d+|$)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, volume_outline, re.DOTALL | re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
-
-        return f"Chapter {chapter_num} (no outline found, improvise based on master outline)"
+        return (
+            f"(The following is the full volume outline. "
+            f"Please locate and follow the outline for Chapter {chapter_num}.)\n\n"
+            f"{volume_outline}"
+        )
 
     def _get_recent_briefs(self, current_chapter: int) -> str:
-        """Get the most recent N chapter summaries."""
+        """Get the most recent N chapter summaries.
+
+        Split on any level-3 heading (### ...) so that it works regardless
+        of the language used in chapter titles."""
         briefs = storage.read_file(f"{config.DIR_PLOT}/chapter_briefs.md")
         if not briefs:
             return ""
 
-        sections = re.split(r'(?=### (?:第\d+章|Chapter \d+))', briefs)
+        # 按任意 ### 标题分割，语言无关
+        sections = re.split(r'(?=^### .+)', briefs, flags=re.MULTILINE)
+        # 过滤掉空段
+        sections = [s for s in sections if s.strip()]
         recent = sections[-config.RECENT_CHAPTERS_FOR_CONTEXT:]
         return "\n".join(recent) if recent else ""
 
     def _get_character_status(self) -> str:
-        """Get the current character status."""
+        """Get the current character status.
+
+        Instead of regex-matching a specific heading (which only worked in
+        Chinese / English), we return the tail of the progress file.  The
+        LLM can locate the relevant section itself."""
         progress = storage.read_file(f"{config.DIR_META}/progress.md")
         if progress:
-            match = re.search(r'(## (?:当前角色状态速查|Current Character Status).*?)(?=##|\Z)',
-                              progress, re.DOTALL)
-            if match:
-                return match.group(1).strip()
+            # 返回 progress 文件的最后 3000 字符（包含最新角色状态）
+            return progress[-3000:] if len(progress) > 3000 else progress
 
         characters = storage.read_file(f"{config.DIR_WORLDBUILDING}/characters.md")
         if characters:
-            return characters[:3000] + "\n(...see full character profiles)"
+            return characters[:3000]
         return ""
 
     def _get_hooks_info(self) -> str:
@@ -1115,12 +1113,23 @@ class NovelWorkflow:
 
     # ==================== Full Workflow ====================
     def run_full(self):
-        """Execute the complete creation pipeline."""
+        """Execute the complete creation pipeline.
+        If user has existing chapters, integrates them into the workflow."""
         ui = self._ui()
 
-        if not self.phase_planning():
-            print(ui["planning_incomplete"])
-            return
+        # Step 0: Ask if user has already written chapters
+        has_existing = self._ask_existing_chapters()
+
+        if has_existing:
+            # Continue-from-existing workflow
+            if not self._phase_continue_planning():
+                print(ui["planning_incomplete"])
+                return
+        else:
+            # Normal start-from-scratch workflow
+            if not self.phase_planning():
+                print(ui["planning_incomplete"])
+                return
 
         # Ask user to confirm/adjust writing parameters
         self._ask_writing_params()
@@ -1129,9 +1138,23 @@ class NovelWorkflow:
         self._select_quote_style()
 
         self.phase_worldbuilding()
-        self.phase_master_outline()
+
+        if has_existing:
+            # Continue mode: generate outline incorporating existing content
+            self._phase_master_outline_continue()
+        else:
+            self.phase_master_outline()
+
         self.phase_volume_outline(1)
-        self.phase_writing()
+
+        if has_existing:
+            # Continue mode: run post-processing for existing chapters, then start writing from next
+            self._process_existing_chapters_post_write()
+            next_chapter = self.existing_chapter_count + 1
+            print(ui["continue_writing_from"].format(next_chapter=next_chapter))
+            self.phase_writing(start_chapter=next_chapter)
+        else:
+            self.phase_writing()
 
     def resume(self):
         """Resume writing from the last checkpoint."""
@@ -1158,3 +1181,270 @@ class NovelWorkflow:
             self.phase_master_outline()
 
         self.phase_writing(start_chapter=completed + 1)
+
+    # ==================== Continue from Existing Chapters (integrated in option 1) ====================
+
+    def _ask_existing_chapters(self) -> bool:
+        """Ask user if they have already written chapters.
+        If yes, create empty files for user to fill in, then read and summarize.
+        Returns True if user has existing chapters, False otherwise."""
+        ui = self._ui()
+
+        answer = input(ui["ask_existing_chapters"]).strip().lower()
+        if answer not in ["y", "yes", "是", "有", "好"]:
+            return False
+
+        # Ask how many chapters
+        while True:
+            count_str = input(ui["ask_chapter_count"]).strip()
+            if count_str.isdigit() and int(count_str) > 0:
+                chapter_count = int(count_str)
+                break
+            print(ui["ask_chapter_count_invalid"])
+
+        self.existing_chapter_count = chapter_count
+
+        # Create empty chapter files
+        chapters_dir = config.get_path(config.DIR_CHAPTERS)
+        os.makedirs(chapters_dir, exist_ok=True)
+
+        print(ui["created_empty_chapters"].format(
+            count=chapter_count,
+            path=chapters_dir,
+        ))
+        for i in range(1, chapter_count + 1):
+            filename = f"chapter_{i:03d}.txt"
+            filepath = os.path.join(chapters_dir, filename)
+            if not os.path.exists(filepath):
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write("")  # Create empty file
+            print(ui["created_empty_chapter_item"].format(filename=filename))
+
+        # Wait for user to fill in content
+        input(ui["wait_fill_chapters"])
+
+        # Check filled content
+        print(ui["checking_filled_chapters"])
+        chapters = []
+        valid_count = 0
+        for i in range(1, chapter_count + 1):
+            filename = f"chapter_{i:03d}.txt"
+            filepath = os.path.join(chapters_dir, filename)
+            content = ""
+            if os.path.exists(filepath):
+                with open(filepath, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+
+            if content:
+                word_count = count_words(content)
+                print(ui["filled_chapter_ok"].format(num=i, words=word_count))
+                chapters.append((i, content))
+                valid_count += 1
+            else:
+                print(ui["filled_chapter_empty"].format(num=i))
+
+        if valid_count == 0:
+            print(ui["all_chapters_empty"])
+            self.existing_chapter_count = 0
+            return False
+
+        # Update actual valid chapter count
+        self.existing_chapter_count = valid_count
+
+        # Generate chapter summaries
+        print(ui["continue_summary_generating"])
+        summarizer = ChapterSummarizerAgent()
+        self.chapter_summaries = summarizer.summarize_all(chapters)
+        print(ui["continue_summary_done"])
+
+        return True
+
+    def _process_existing_chapters_post_write(self):
+        """For existing chapters: skip writing but run post-processing (hook tracking, briefs)
+        in sequential order so that hooks/briefs are properly populated."""
+        ui = self._ui()
+
+        if not self.style_guide:
+            self.style_guide = storage.read_file(f"{config.DIR_META}/style_guide.md") or ""
+
+        post_writer = PostWriteAgent()
+
+        for i in range(1, self.existing_chapter_count + 1):
+            print(ui["skipping_chapter_writing"].format(num=i))
+            print(ui["running_post_process_existing"].format(num=i))
+
+            # Read existing chapter content
+            chapter_text = storage.read_file(f"{config.DIR_CHAPTERS}/chapter_{i:03d}.txt")
+            if not chapter_text:
+                continue
+
+            # Extract chapter outline
+            current_volume = self._get_volume_for_chapter(i)
+            volume_outline = storage.read_file(
+                f"{config.DIR_PLOT}/volume_{current_volume:02d}.md"
+            )
+            # Generate volume outline if not yet available
+            if not volume_outline:
+                volume_outline = self.phase_volume_outline(current_volume)
+
+            chapter_outline = self._extract_chapter_outline(volume_outline or "", i)
+
+            # Run post-processing: generate summary, update hooks, update briefs
+            analysis = post_writer.analyze_chapter(i, chapter_text, chapter_outline)
+            if analysis:
+                post_writer.update_files(i, analysis)
+            else:
+                print(ui.get("post_failed", "❌ Post-processing failed for chapter {num}").format(num=i))
+
+        print(ui["existing_chapters_processed"].format(
+            count=self.existing_chapter_count,
+            next=self.existing_chapter_count + 1,
+        ))
+
+    def _phase_continue_planning(self) -> bool:
+        """Planning phase using existing chapter context."""
+        ui = self._ui()
+        print("\n" + "=" * 60)
+        print(ui["continue_planning_title"].format(count=self.existing_chapter_count))
+        print("=" * 60)
+
+        planner = ContinuePlannerAgent(self.chapter_summaries)
+
+        first_question = planner.start()
+        print(f"{ui['planner_prefix']}{first_question}\n")
+
+        rounds = 0
+        while rounds < config.MAX_PLANNING_ROUNDS:
+            user_input = multiline_input(ui["user_prefix"])
+            if not user_input:
+                print(ui["input_empty_hint"])
+                continue
+
+            if user_input.lower() in ["quit", "exit", "退出"]:
+                print(ui["quit_planning"])
+                return False
+
+            if user_input.lower() in ["done", "完成", "够了", "可以了"]:
+                print(ui["force_done"])
+                break
+
+            is_enough, response = planner.process_user_input(user_input)
+            print(f"{ui['planner_prefix']}{response}\n")
+
+            if is_enough:
+                break
+            rounds += 1
+
+        # Generate plan
+        print(ui["generating_plan"])
+        self.plan = planner.generate_plan()
+
+        # Display plan for user confirmation
+        self._display_plan()
+
+        while True:
+            confirm = multiline_input(ui["confirm_plan"])
+            if confirm.lower() in ["y", "yes", "好", "可以", "满意", "確認"]:
+                break
+            elif confirm.lower() in ["quit", "exit", "退出"]:
+                return False
+            else:
+                p = get_locale().PROMPTS
+                revision_msg = p["plan_revision_request"].format(feedback=confirm)
+                if (planner.conversation_history
+                        and planner.conversation_history[-1]["role"] == "user"):
+                    planner.conversation_history[-1]["content"] += "\n\n" + revision_msg
+                else:
+                    planner.conversation_history.append(
+                        {"role": "user", "content": revision_msg}
+                    )
+                print(ui["adjusting_plan"])
+                self.plan = planner.generate_plan()
+                self._display_plan()
+
+        # Save plan
+        self._save_plan()
+        print(ui["plan_confirmed"])
+
+        self._offer_rename_project_dir()
+        return True
+
+    def _phase_master_outline_continue(self):
+        """Generate master outline in continue mode (incorporating existing chapter summaries)."""
+        ui = self._ui()
+        print("\n" + "=" * 60)
+        print(ui["continue_outline_context"].format(count=self.existing_chapter_count))
+        print("=" * 60)
+
+        if not self.plan:
+            self.plan = self._load_plan()
+
+        outline_agent = OutlineAgent()
+
+        # Build chapter summaries text
+        summaries_text = self._format_chapter_summaries()
+
+        print(ui.get("generating_outline", "Generating master outline..."))
+        self.master_outline = outline_agent.generate_master_outline_continue(
+            plan=self.plan,
+            chapter_summaries=summaries_text,
+            existing_count=self.existing_chapter_count,
+        )
+
+        storage.write_file(f"{config.DIR_PLOT}/master_outline.md", self.master_outline)
+        print(ui["outline_done"])
+
+        print(ui["outline_review"])
+        if config.LAZY_MODE:
+            print(ui["lazy_auto_continue"])
+        else:
+            input(ui["press_enter_continue"])
+
+    def _format_chapter_summaries(self) -> str:
+        """Format chapter summaries into a readable text block."""
+        if not self.chapter_summaries:
+            return ""
+        parts = []
+        for s in self.chapter_summaries:
+            ch_num = s.get("chapter_num", "?")
+            title = s.get("title", "")
+            summary = s.get("summary", "")
+            characters = ", ".join(s.get("characters", []))
+            key_events = s.get("key_events", [])
+
+            part = f"### Chapter {ch_num}"
+            if title:
+                part += f": {title}"
+            part += f"\n{summary}"
+            if characters:
+                part += f"\nCharacters: {characters}"
+            if key_events:
+                part += "\nKey events:\n" + "\n".join(f"  - {e}" for e in key_events)
+            parts.append(part)
+        return "\n\n".join(parts)
+
+    def _init_briefs_from_summaries(self):
+        """Initialize chapter_briefs.md with summaries from existing chapters."""
+        if not self.chapter_summaries:
+            return
+        tpl = get_locale().TEMPLATES
+        for s in self.chapter_summaries:
+            ch_num = s.get("chapter_num", 0)
+            title = s.get("title", "")
+            summary = s.get("summary", "")
+            key_events = s.get("key_events", [])
+
+            brief_text = tpl["chapter_brief_entry"].format(
+                chapter_num=ch_num,
+                title=title,
+                word_count="(pre-existing)",
+            )
+            for event in key_events:
+                brief_text += f"- {event}\n"
+            if s.get("unresolved_hooks"):
+                hooks_header = tpl.get("hooks_planted_header", "\n**Hooks:**\n")
+                brief_text += hooks_header
+                for hook in s["unresolved_hooks"]:
+                    brief_text += f"- {hook}\n"
+
+            storage.append_file(f"{config.DIR_PLOT}/chapter_briefs.md", brief_text)

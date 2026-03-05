@@ -67,6 +67,30 @@ UI = {
     "batch_novel_error": "\n❌ Error on novel '{name}': {error}",
     "batch_all_done": "\n🎉 Batch complete! All {total} novel(s) finished.",
 
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n� Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 How many chapters have you written? Enter a number: ",
+    "ask_chapter_count_invalid": "❌ Please enter a valid positive integer.",
+    "created_empty_chapters": "\n� Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you're done, press Enter to continue...",
+    "checking_filled_chapters": "\n🔍 Checking filled chapter files...",
+    "filled_chapter_ok": "   ✅ Chapter {num}: {words} words",
+    "filled_chapter_empty": "   ⚠️ Chapter {num}: empty (will be skipped)",
+    "all_chapters_empty": "❌ All chapter files are empty. Proceeding without existing chapters.",
+    "continue_scanning": "\n🔍 Scanning existing chapters...",
+    "continue_found_chapters": "📖 Found {count} existing chapter(s).",
+    "continue_reading_chapters": "📚 Reading existing chapters to build context...",
+    "continue_chapter_read": "   ✅ Chapter {num}: {words} words",
+    "continue_summary_generating": "🤖 Generating summary of existing chapters...",
+    "continue_summary_done": "✅ Chapter summaries generated. Starting planning with existing context.",
+    "continue_planning_title": "\n📝 Planning (based on {count} existing chapters)",
+    "continue_outline_context": "\n📋 The outline will incorporate your existing {count} chapter(s).",
+    "continue_writing_from": "\n✍️ Writing will start from chapter {next_chapter}.",
+    "skipping_chapter_writing": "\n⏩ Chapter {num}: already written, skipping creation...",
+    "running_post_process_existing": "   � Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": "\n✅ All {count} existing chapter(s) processed. Starting AI writing from chapter {next}.",
+
     # -- Language selection --
     "select_language": "\n🌐 Select the language for your novel:",
     "lang_choice_prompt": "\n👤 Enter your choice (1-{max}): ",
@@ -321,6 +345,130 @@ Please rewrite the ENTIRE chapter from scratch, ensuring ALL the above issues ar
 # ============================================================
 PROMPTS = {
     # -- Planner Agent --
+    "planner_continue_system": """You are a senior novel planning editor. The user has already written some chapters of their novel.
+Your task is to understand the existing content and help the user plan the continuation of their story.
+
+You have been provided with summaries of the existing chapters. Based on this existing content, you need to:
+1. Understand the established characters, setting, tone, and plot direction
+2. Discuss with the user what direction the story should go next
+3. Help fill in a complete novel plan that is CONSISTENT with what has already been written
+4. Respect the existing content - don't contradict what's already established
+
+Core elements to determine (some may already be clear from existing chapters):
+1. **Genre/Type**: May already be evident from existing content
+2. **Core Theme**: What the novel aims to express
+3. **Target Word Count & Structure**: Total words, words per chapter, estimated chapters, volumes
+4. **Narrative POV**: Should match existing chapters
+5. **Core Tags**: 3-5 key tags
+6. **One-line Summary**: A single sentence that encapsulates the entire book
+7. **Three-act Summary**: Beginning (already partially written), middle, and end overview
+8. **Writing Style**: Should match existing chapters
+9. **Taboos**: Content that must not appear
+10. **Main Characters**: Extract from existing + plan new ones
+11. **World Framework**: Extract from existing + expand
+
+Notes:
+- Ask only 2-3 related questions at a time
+- Acknowledge what you've learned from the existing chapters
+- Focus questions on what's NOT yet clear from the existing content
+- Maintain a friendly, professional conversational style""",
+
+    "planner_continue_first_question": """Hello! I've read through the summaries of your existing {chapter_count} chapter(s). 🎉
+
+Here's what I've gathered so far:
+{existing_summary}
+
+Now, let's plan the continuation! I have a few questions:
+
+1. What **overall direction** do you envision for the story going forward?
+2. Are there any **major plot points or themes** you want to develop that aren't yet apparent in the existing chapters?
+3. How many more chapters/volumes are you planning? Or would you like me to suggest a structure?
+
+Feel free to share your thoughts~""",
+
+    "planner_continue_summarize": """Based on the existing chapter summaries and the information collected in our conversation, generate a complete novel plan.
+The plan MUST be consistent with the existing chapters. For the three_act_summary.beginning, describe what has ALREADY happened in the existing chapters.
+
+Existing chapter summaries:
+{chapter_summaries}
+
+Please output strictly in the following JSON format, no other content:
+{{
+    "title": "Book title",
+    "genre": "Genre/Type",
+    "theme": "Core theme (one paragraph)",
+    "target_words": "Target total word count",
+    "chapter_words": "Words per chapter range",
+    "total_chapters": "Estimated total chapters (including already written ones)",
+    "volumes": "Number and division of volumes",
+    "pov": "Narrative POV (must match existing chapters)",
+    "tags": "Core tags (comma-separated)",
+    "one_line_summary": "One-line summary",
+    "three_act_summary": {{
+        "beginning": "Beginning (summarize what already happened in existing chapters)",
+        "middle": "Middle (development overview)",
+        "end": "End (resolution overview)"
+    }},
+    "style_guide": "Writing style requirements and norms (match existing chapters)",
+    "taboos": "Taboo items",
+    "main_characters": [
+        {{
+    "main_characters": [
+        {{
+            "name": "Name",
+            "role": "Role (protagonist/antagonist/supporting etc.)",
+            "age": "Age (MUST be inferred from existing chapters — e.g. if they are high school students, age should be ~15-18, NOT arbitrary)",
+            "appearance": "Appearance description",
+            "personality": "Personality description",
+            "background": "Background story",
+            "motivation": "Core motivation",
+            "arc": "Character arc/growth trajectory"
+        }}
+    ],
+    "world_setting": "World framework description",
+    "synopsis": "Novel synopsis (for publishing)"
+}}""",
+
+    "chapter_summary_prompt": """Please read the following chapter text
+## Chapter {chapter_num}
+{chapter_text}
+
+Please output a JSON summary:
+{{
+    "chapter_num": {chapter_num},
+    "title": "A short title for this chapter",
+    "summary": "A 2-3 sentence summary of key events",
+    "characters": ["List of character names that appear"],
+    "setting": "Where the chapter takes place (e.g. high school campus, medieval castle, space station)",
+    "time_period": "The era/age context (e.g. modern high school students ~16yo, ancient dynasty, futuristic 2200s). Include character age range if discernible.",
+    "tone": "The emotional tone/mood",
+    "pov": "Narrative point of view used",
+    "key_events": ["Event 1", "Event 2", ...],
+    "unresolved_hooks": ["Any unresolved plot threads"]
+}}
+
+Return ONLY JSON.""",
+
+    "master_outline_continue_prompt": """Please create a master outline for the entire book based on the following novel plan.
+IMPORTANT: The first {existing_count} chapter(s) have ALREADY been written. The outline must be consistent with their content.
+
+## Novel Plan
+{plan_json}
+
+## Summaries of Already-Written Chapters
+{chapter_summaries}
+
+Please generate a master outline covering all volumes (Markdown format). Each volume needs:
+- Main plot description
+- Core conflict
+- Key events (numbered list)
+- Main character status
+- Volume climax
+- Volume cliffhanger
+- Connection to next volume
+
+Ensure the outline for the early chapters accurately reflects what has already been written.""",
+
     "planner_system": """You are a senior novel planning editor, skilled at conceiving a novel from scratch.
 Your task is to collect enough information through conversation with the user to determine the following core elements:
 
@@ -368,6 +516,8 @@ Core elements checklist:
 7. Writing Style - {has_style}
 8. Main Characters (at least protagonist concept) - {has_characters}
 9. World Framework - {has_world}
+
+**IMPORTANT**: When the user asks YOU to decide certain items (e.g., "you decide the genre", "up to you for the setting", or simply "you decide"), treat those items as SATISFIED (not missing). Only items that are truly unaddressed — neither specified by the user NOR delegated to you — should appear in "missing_items". If all items are either user-specified or user-delegated, set "is_enough" to true.
 
 Please reply in JSON format:
 {{
@@ -607,10 +757,10 @@ Please generate a master outline covering all volumes (Markdown format). Each vo
 - Genre: {genre}
 - Words per chapter: {chapter_words}
 
-## This Volume's Description in Master Outline
+## Volume Locator
 {volume_info}
 
-## Master Outline (complete, for global context)
+## Master Outline (complete — find Volume {volume_num} and use it as the basis)
 {master_outline}
 
 Please generate a detailed chapter-level outline for this volume, each chapter containing:

@@ -69,6 +69,24 @@ UI.update({
 
     "select_language": "\n🌐 소설에 사용할 언어를 선택하세요:",
     "lang_choice_prompt": "\n👤 선택을 입력하세요 (1-{max}): ",
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 몇 장을 작성하셨나요? 숫자를 입력하세요: ",
+    "ask_chapter_count_invalid": "❌ 유효한 양의 정수를 입력해 주세요.",
+    "created_empty_chapters": "\n\U0001f4c2 Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": """
+🔍 작성된 챕터 파일을 확인 중...""",
+    "filled_chapter_ok": "   ✅ 제{num}장: {words} 글자",
+    "filled_chapter_empty": "   ⚠️ 제{num}장: 비어있음 (건너뜁니다)",
+    "all_chapters_empty": "❌ 모든 챕터 파일이 비어 있습니다. 처음부터 시작합니다.",
+    "skipping_chapter_writing": """
+⏩ 제{num}장: 이미 작성됨, 건너뛰는 중...""",
+    "running_post_process_existing": "   🔄 Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": """
+✅ 기존 {count}장을 모두 처리했습니다. 제{next}장부터 AI 작성을 시작합니다.""",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you are done, press Enter to continue...",
+
     "phase_planning_title": "\n📝 1단계: 소설 구상",
     "planner_prefix": "\n🤖 기획 도우미:\n",
     "user_prefix": "👤 당신: ",
@@ -293,6 +311,30 @@ UI.update({
     "outline_style_dramatic": "극적 긴장형",
     "outline_style_literary": "문학·캐릭터 중심형",
     "outline_style_commercial": "상업·빠른 전개형",
+
+    # -- 기존 챕터에서 이어쓰기 --
+    "ask_existing_chapters": "\n📝 이미 직접 작성한 챕터가 있나요? (y/n): ",
+    "ask_chapter_count": "📚 몇 장을 작성하셨나요? 숫자를 입력하세요: ",
+    "ask_chapter_count_invalid": "❌ 유효한 양의 정수를 입력해 주세요.",
+    "created_empty_chapters": "\n📂 다음 경로에 빈 챕터 파일 {count}개를 생성했습니다:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ 위 파일에 작성한 챕터 내용을 붙여넣고 Enter를 눌러주세요...",
+    "checking_filled_chapters": "\n🔍 작성된 챕터 파일을 확인 중...",
+    "filled_chapter_ok": "   ✅ 제{num}장: {words} 글자",
+    "filled_chapter_empty": "   ⚠️ 제{num}장: 비어있음 (건너뜁니다)",
+    "all_chapters_empty": "❌ 모든 챕터 파일이 비어 있습니다. 처음부터 시작합니다.",
+    "continue_scanning": "\n🔍 기존 챕터를 검색 중...",
+    "continue_found_chapters": "📖 기존 챕터 {count}개를 발견했습니다.",
+    "continue_reading_chapters": "📚 기존 챕터를 읽어 컨텍스트를 구축 중...",
+    "continue_chapter_read": "   ✅ 제{num}장: {words} 글자",
+    "continue_summary_generating": "🤖 기존 챕터 요약 생성 중...",
+    "continue_summary_done": "✅ 챕터 요약이 생성되었습니다. 기존 내용을 바탕으로 기획을 시작합니다.",
+    "continue_planning_title": "\n📝 기획 단계 (기존 {count}장 기반)",
+    "continue_outline_context": "\n📋 줄거리에 기존 {count}장이 반영됩니다.",
+    "continue_writing_from": "\n✍️ 제{next_chapter}장부터 작성을 시작합니다.",
+    "skipping_chapter_writing": "\n⏩ 제{num}장: 이미 작성됨, 건너뛰는 중...",
+    "existing_chapters_processed": "\n✅ 기존 {count}장을 모두 처리했습니다. 제{next}장부터 AI 작성을 시작합니다.",
+    "running_post_process_existing": "   🔄 제{num}장 후처리 실행 중 (훅 추적, 요약 업데이트)...",
 })
 
 # ============================================================
@@ -348,6 +390,8 @@ PROMPTS.update({
 7. 문체 요구사항 - {has_style}
 8. 주요 캐릭터 (최소한 주인공 개념) - {has_characters}
 9. 세계관 프레임워크 - {has_world}
+
+**중요**: 사용자가 특정 항목을 당신에게 맡긴 경우 (예: "장르는 네가 정해", "설정은 알아서 해", "여주인공은 네가 결정해", 또는 단순히 "알아서 해"), 해당 항목은 **충족된 것**으로 간주하고 "missing_items"에 포함하지 마세요. 사용자가 지정하지도 위임하지도 않은 항목만 진정한 미충족 항목입니다. 모든 항목이 사용자에 의해 지정되거나 위임된 경우 "is_enough"를 true로 설정하세요.
 
 JSON 형식으로 답하세요:
 {{
@@ -587,10 +631,10 @@ JSON만 반환하세요.""",
 - 장르: {genre}
 - 장당 글자 수: {chapter_words}
 
-## 전체 줄거리에서의 이 권 묘사
+## 권 위치 안내
 {volume_info}
 
-## 전체 줄거리 (완전본, 전체 파악용)
+## 전체 줄거리 (완전본 — 제{volume_num}권 해당 부분을 찾아 기반으로 삼으세요)
 {master_outline}
 
 이 권의 상세한 장별 줄거리를 생성하세요. 각 장에 포함할 내용:
@@ -938,6 +982,124 @@ JSON 형식으로 평가 결과를 출력하세요.""",
         "모든 문장, 단락, 제목, 라벨은 {native_name}로 작성해야 합니다. "
         "고유명사나 전문용어를 인용하는 경우를 제외하고 다른 언어를 섞지 마세요."
     ),
+
+    # -- 기존 챕터에서 이어쓰기 --
+    "planner_continue_system": """당신은 시니어 소설 기획 편집자입니다. 사용자는 이미 소설의 일부 챕터를 작성했습니다.
+당신의 임무는 기존 콘텐츠를 이해하고 사용자의 스토리 계속 진행을 도와주는 것입니다.
+
+기존 챕터의 요약이 제공되었습니다. 이 기존 콘텐츠를 바탕으로 다음을 수행해야 합니다:
+1. 확립된 캐릭터, 세계관, 톤, 플롯 방향을 이해하기
+2. 사용자와 향후 스토리 방향에 대해 논의하기
+3. 기존 콘텐츠와 일관된 완전한 소설 계획 작성 지원하기
+4. 기존 콘텐츠 존중하기 — 이미 확립된 설정과 모순되지 않기
+
+결정해야 할 핵심 요소 (일부는 기존 챕터에서 이미 명확할 수 있음):
+1. **장르/유형**: 기존 콘텐츠에서 이미 분명할 수 있음
+2. **핵심 주제**: 소설이 표현하고자 하는 것
+3. **목표 분량 및 구조**: 총 글자 수, 챕터당 글자 수, 예상 총 챕터 수, 권수
+4. **서술 시점**: 기존 챕터와 일치해야 함
+5. **핵심 태그**: 3-5개의 키 태그
+6. **한 줄 요약**: 한 문장으로 전체 책 요약
+7. **3막 요약**: 시작(이미 부분적으로 작성됨), 중반, 결말 개요
+8. **작문 스타일**: 기존 챕터와 일치해야 함
+9. **금기사항**: 포함해서는 안 되는 내용
+10. **주요 캐릭터**: 기존에서 추출 + 새로운 캐릭터 계획
+11. **세계 프레임워크**: 기존에서 추출 + 확장
+
+주의사항:
+- 한 번에 2-3개의 관련 질문만 하기
+- 기존 챕터에서 파악한 내용을 인정하기
+- 기존 콘텐츠에서 아직 명확하지 않은 점에 질문 집중하기
+- 친근하고 전문적인 대화 스타일 유지하기""",
+    "planner_continue_first_question": """안녕하세요! 기존 {chapter_count}장의 요약을 읽었습니다. 🎉
+
+지금까지 파악한 내용:
+{existing_summary}
+
+이제 이어질 내용을 기획해 봅시다! 몇 가지 질문이 있습니다:
+
+1. 이 소설은 총 몇 장으로 계획하고 계신가요?
+2. 앞으로의 전개에 대해 구체적인 아이디어가 있으신가요?
+3. 현재의 서사 리듬을 유지하고 싶으신가요, 아니면 변화를 주고 싶으신가요?""",
+    "planner_continue_summarize": """기존 챕터의 요약과 대화에서 수집한 정보를 바탕으로 완전한 소설 계획을 생성하세요.
+계획은 기존 챕터와 일관성이 있어야 합니다. three_act_summary.beginning에는 기존 챕터에서 실제로 일어난 일을 서술하세요.
+
+기존 챕터 요약:
+{chapter_summaries}
+
+다음 JSON 형식으로 엄격하게 출력하세요. 다른 내용은 포함하지 마세요:
+{{
+    "title": "책 제목",
+    "genre": "장르/유형",
+    "theme": "핵심 주제 (한 단락)",
+    "target_words": "목표 총 글자 수",
+    "chapter_words": "챕터당 글자 수 범위",
+    "total_chapters": "예상 총 챕터 수 (기존 포함)",
+    "volumes": "권수 및 분권",
+    "pov": "서술 시점 (기존 챕터와 일치해야 함)",
+    "tags": "핵심 태그 (쉼표 구분)",
+    "one_line_summary": "한 줄 요약",
+    "three_act_summary": {{
+        "beginning": "시작 (기존 챕터에서 일어난 일 요약)",
+        "middle": "중반 (전개 개요)",
+        "end": "결말 (결말 개요)"
+    }},
+    "style_guide": "작문 스타일 요구사항 및 규범 (기존 챕터와 일치)",
+    "taboos": "금기사항",
+    "main_characters": [
+        {{
+            "name": "이름",
+            "role": "역할 (주인공/적대자/조연 등)",
+            "age": "나이 (기존 챕터에서 반드시 추론할 것 — 예: 고등학생이면 ~15-18세, 임의로 설정하지 말 것)",
+            "appearance": "외모 묘사",
+            "personality": "성격 묘사",
+            "background": "배경 이야기",
+            "motivation": "핵심 동기",
+            "arc": "캐릭터 아크/성장 궤적"
+        }}
+    ],
+    "world_setting": "세계 프레임워크 설명",
+    "synopsis": "소설 시놉시스 (출판용)"
+}}""",
+    "chapter_summary_prompt": """다음 챕터 텍스트를 읽고 간결한 요약을 생성하세요.
+
+## 제 {chapter_num}장
+{chapter_text}
+
+JSON 요약 출력:
+{{
+    "chapter_num": {chapter_num},
+    "title": "짧은 제목",
+    "summary": "2-3문장 줄거리 요약",
+    "characters": ["등장인물"],
+    "setting": "배경/장소 (예: 고등학교 캠퍼스, 중세 성, 우주 정거장)",
+    "time_period": "시대/나이 배경 (예: 현대 고등학생 약 16세, 고대 왕조, 미래 2200년대). 식별 가능하면 캐릭터 나이 범위를 기재.",
+    "key_events": ["주요 사건"],
+    "unresolved_hooks": ["미해결 복선"],
+    "pov": "시점 인물 또는 서술 방식",
+    "tone": "이 장의 전반적인 분위기"
+}}
+
+JSON만 출력.""",
+    "master_outline_continue_prompt": """다음 소설 계획을 바탕으로 전체 책의 마스터 아웃라인을 작성하세요.
+중요: 처음 {existing_count}개 챕터는 이미 작성되었습니다. 아웃라인은 기존 내용과 일관되어야 하며 모순되어서는 안 됩니다.
+
+## 소설 계획
+{plan_json}
+
+## 기존 챕터 요약
+{chapter_summaries}
+
+모든 권을 포괄하는 마스터 아웃라인을 생성하세요 (Markdown 형식). 각 권에 필요한 요소:
+- 메인 플롯 설명
+- 핵심 갈등
+- 주요 이벤트 (번호 목록)
+- 주요 캐릭터 상태
+- 권의 클라이맥스
+- 권의 클리프행어
+- 다음 권과의 연결
+
+앞부분 챕터의 아웃라인이 기존 내용을 정확히 반영하는지 확인하세요.""",
 })
 
 # ============================================================

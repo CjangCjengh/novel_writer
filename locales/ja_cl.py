@@ -49,6 +49,24 @@ UI.update({
     "batch_all_done": "\n🎉 續けざま成就す！凡て {total} 篇みな成りにけり。",
 
     "select_language": "\n🌐 物語に用ゐる言の葉を選び給へ：",
+    # -- Continue from existing chapters (integrated in option 1) --
+    "ask_existing_chapters": "\n\U0001f4dd Do you have any chapters already written? (y/n, Enter for no): ",
+    "ask_chapter_count": "📚 幾章書きたまひしか。數を入れたまへ: ",
+    "ask_chapter_count_invalid": "❌ 正しき正の整數を入れたまへ。",
+    "created_empty_chapters": "\n\U0001f4c2 Created {count} empty chapter file(s) in:\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "checking_filled_chapters": """
+🔍 記入の章を檢す...""",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 文字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空なり（飛ばさるべし）",
+    "all_chapters_empty": "❌ 諸章みな空なり。始めより起さむ。",
+    "skipping_chapter_writing": """
+⏩ 第{num}章：既に書きたれば飛ばす...""",
+    "running_post_process_existing": "   🔄 Running post-processing (hook tracking, brief update) for chapter {num}...",
+    "existing_chapters_processed": """
+✅ 既の {count} 章をみな處理せり。第 {next} 章よりAI執筆を始む。""",
+    "wait_fill_chapters": "\n✍️ Please fill in the chapter files with your written content.\n   When you are done, press Enter to continue...",
+
     "phase_planning_title": "\n📝 其の一　はかりごと",
     "planner_prefix": "\n🤖 はかりびと申す：\n",
     "user_prefix": "👤 御方：",
@@ -332,6 +350,30 @@ UI.update({
     "outline_style_dramatic": "劇的にして張り詰めたる",
     "outline_style_literary": "文芸にして人物を重んずる",
     "outline_style_commercial": "世に売るべく疾き節の",
+
+    # -- 既の章より續く --
+    "ask_existing_chapters": "\n📝 すでに手づから書きたまひし章ありや？(y/n): ",
+    "ask_chapter_count": "📚 幾章書きたまひしか。數を入れたまへ: ",
+    "ask_chapter_count_invalid": "❌ 正しき正の整數を入れたまへ。",
+    "created_empty_chapters": "\n📂 下の道に空の章 {count} つを造れり：\n   {path}\n",
+    "created_empty_chapter_item": "   📄 {filename}",
+    "wait_fill_chapters": "\n✏️ 書きたまひし章の文を上の文牘に入れたまへ。畢りなばEnterを押したまへ...",
+    "checking_filled_chapters": "\n🔍 記入の章を檢す...",
+    "filled_chapter_ok": "   ✅ 第{num}章：{words} 文字",
+    "filled_chapter_empty": "   ⚠️ 第{num}章：空なり（飛ばさるべし）",
+    "all_chapters_empty": "❌ 諸章みな空なり。始めより起さむ。",
+    "continue_scanning": "\n🔍 既の章を檢す...",
+    "continue_found_chapters": "📖 既の章 {count} 篇を見出だす。",
+    "continue_reading_chapters": "📚 既の章を讀み脈絡を立つ...",
+    "continue_chapter_read": "   ✅ 第{num}章：{words} 文字",
+    "continue_summary_generating": "🤖 既の章の要を撮る...",
+    "continue_summary_done": "✅ 章の要を得たり。既の文に據りて企劃を始む。",
+    "continue_planning_title": "\n📝 企劃（既の {count} 章に據る）",
+    "continue_outline_context": "\n📋 綱目は既の {count} 章を取り入る。",
+    "continue_writing_from": "\n✍️ 第{next_chapter}章より筆を起す。",
+    "skipping_chapter_writing": "\n⏩ 第{num}章：既に書きたれば飛ばす...",
+    "existing_chapters_processed": "\n✅ 既の {count} 章をみな處理せり。第 {next} 章よりAI執筆を始む。",
+    "running_post_process_existing": "   🔄 第{num}章の後處理を行ふ（伏線追跡、要約更新）...",
 })
 
 PROMPTS = dict(_BASE_PROMPTS)
@@ -384,6 +426,8 @@ PROMPTS.update({
 七、文の風の望み - {has_style}
 八、主なる人々（少なくとも主人公の概） - {has_characters}
 九、世界の枠組み - {has_world}
+
+**要なること**：使ひ手が某の項を汝に委ねたるとき（例：「文體は汝に任す」「趣は好きにせよ」、又は單に「汝に任す」）、其の項は**足れり**と見做し、「missing_items」に入るべからず。使ひ手の指しも委ねもせざる項のみぞ眞に足らざるなり。諸項悉く指し又は委ねられたるとき「is_enough」をtrueとし給へ。
 
 JSON形式にて答へ給へ：
 {{
@@ -623,10 +667,10 @@ Markdown形式にて、含むべきもの：
 - 体裁：{genre}
 - 一章の文字数：{chapter_words}
 
-## この巻の総綱における描写
+## 巻の位置の手引
 {volume_info}
 
-## 総綱（全き本、全体を見渡すため）
+## 総綱（全き本 — 第{volume_num}巻の該当箇所を見出して基礎とし給へ）
 {master_outline}
 
 この巻の章ごとの精しき綱目を成し給へ。各章に含むべきもの：
@@ -970,6 +1014,124 @@ Markdown形式にて全き総めの報を成し給へ。""",
         "一文一段、見出し・標の悉くを{native_name}にて綴り給へ。"
         "固有の名や術語を引く場合を除き、他の言葉を交ふること勿れ。"
     ),
+
+    # -- 既の章より續く --
+    "planner_continue_system": """汝は練達の物語企劃編纂者なり。讀者は既に物語の數章を著し畢れり。
+汝の務めは既有の内容を理解し、讀者の物語の續きを籌る手助けをすることなり。
+
+既有の章の要約が與へられたり。この既有の内容に據りて、汝は以下を爲すべし：
+1. 既に定められし人物、世界觀、趣、筋立ての方向を理解すること
+2. 讀者と今後の物語の展開に就きて議すること
+3. 既有の内容と齟齬なき完全なる物語の計劃を作る手助けをすること
+4. 既有の内容を重んずること——既に定められし設定と矛盾してはならず
+
+定むべき核心の要素（既有の章より明らかなるものもあり）：
+1. **種別/類型**：既有の内容より明らかなる場合あり
+2. **核心の主題**：物語が表さんと欲するもの
+3. **目標の字數と構成**：總字數、章毎の字數、推定總章數、卷數
+4. **語りの視點**：既有の章と一致せしむべし
+5. **核心の標籤**：三より五の鍵となる標籤
+6. **一行の要約**：一文にて全書を要約す
+7. **三幕構成の要約**：序（既に一部執筆濟み）、破、急の概要
+8. **文體**：既有の章と一致せしむべし
+9. **禁忌**：含めてはならぬ内容
+10. **主要人物**：既有より抽出し、新たなるものを計劃す
+11. **世界の設定**：既有より抽出し、擴張す
+
+心得：
+- 一度に二三の關聯する問ひのみを發すべし
+- 既有の章より把握せし内容を示すべし
+- 既有の内容より未だ明らかならざる點に問ひを集中すべし
+- 親しみある專門的なる會話の樣式を保つべし""",
+    "planner_continue_first_question": """御機嫌よう！既の {chapter_count} 章の要を讀みたり。🎉
+
+目下知りたる事：
+{existing_summary}
+
+さて續きを計らむ！問ひあり：
+
+1. この物語は總じて幾章の豫定なりや？
+2. 今後の展開に思ひはおはすか？
+3. 今の語りの調子を保ちたまふか、變へたまふか？""",
+    "planner_continue_summarize": """既有の章の要約と對話にて集めし情報に據り、完全なる物語の計劃を生成すべし。
+計劃は既有の章と齟齬なきものたるべし。three_act_summary.beginningには、既有の章にて實際に起こりし事を記すべし。
+
+既有の章の要約：
+{chapter_summaries}
+
+以下のJSON形式にて嚴密に出力すべし。他の内容は不要なり：
+{{
+    "title": "書名",
+    "genre": "種別/類型",
+    "theme": "核心の主題（一段落）",
+    "target_words": "目標總字數",
+    "chapter_words": "章毎の字數範圍",
+    "total_chapters": "推定總章數（既有を含む）",
+    "volumes": "卷數と分卷",
+    "pov": "語りの視點（既有の章と一致せしむべし）",
+    "tags": "核心の標籤（讀點にて區切る）",
+    "one_line_summary": "一行の要約",
+    "three_act_summary": {{
+        "beginning": "序（既有の章にて起こりし事を要約す）",
+        "middle": "破（展開の概要）",
+        "end": "急（結末の概要）"
+    }},
+    "style_guide": "文體の要件と規範（既有の章に合はすべし）",
+    "taboos": "禁忌の事項",
+    "main_characters": [
+        {{
+            "name": "名",
+            "role": "役割（主人公/敵役/脇役など）",
+            "age": "年齡（既有の章より推測すべし。例：學生ならば~15-18歲。任意に定むべからず）",
+            "appearance": "容貌の描寫",
+            "personality": "性格の描寫",
+            "background": "經歷",
+            "motivation": "核心の動機",
+            "arc": "人物弧線/成長の軌跡"
+        }}
+    ],
+    "world_setting": "世界の設定の記述",
+    "synopsis": "物語の梗概（出版の用に供す）"
+}}""",
+    "chapter_summary_prompt": """以下の章を讀み要約を生成せよ。
+
+## 第 {chapter_num} 章
+{chapter_text}
+
+JSON：
+{{
+    "chapter_num": {chapter_num},
+    "title": "題",
+    "summary": "要約",
+    "characters": ["人物"],
+    "setting": "場面/舞臺（例：學園、中世の城、宇宙驛）",
+    "time_period": "時代/年齡背景（例：現代の高校生約十六歲、古代王朝、未來二二〇〇年代）。判別し得る場合は人物の年齡範圍を記すべし。",
+    "key_events": ["出來事"],
+    "unresolved_hooks": ["伏線"],
+    "pov": "視點",
+    "tone": "調子"
+}}
+
+JSONのみ。""",
+    "master_outline_continue_prompt": """以下の物語の計劃に據り、全書のマスターアウトラインを作成すべし。
+肝要：最初の{existing_count}章は既に著し畢れり。アウトラインは既有の内容と齟齬なきものたるべし。
+
+## 物語の計劃
+{plan_json}
+
+## 既有の章の要約
+{chapter_summaries}
+
+全卷を網羅するマスターアウトラインを生成すべし（Markdown形式）。各卷に要する要素：
+- 主筋の説明
+- 核心の葛藤
+- 鍵となる事件（番號附きリスト）
+- 主要人物の狀態
+- 卷の山場
+- 卷の懸念
+- 次卷との繋がり
+
+前の章のアウトラインが既有の内容を正しく映じてゐることを確かめるべし。""",
 })
 
 # ============================================================
