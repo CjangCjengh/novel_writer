@@ -53,10 +53,85 @@ class NovelWorkflow:
         self.style_guide = None
         self.chapter_summaries = None  # For continue-from-existing mode
         self.existing_chapter_count = 0  # Number of pre-existing chapters
+        self._plan_structure = None  # 缓存 LLM 提取的 plan 结构化信息
 
     def _ui(self) -> dict:
         """Shortcut to get current locale UI strings."""
         return get_locale().UI
+
+    def _parse_plan_structure(self) -> dict:
+        """调用 LLM 从 plan 的自然语言字段中提取结构化数值信息，结果会被缓存。
+
+        Returns:
+            {
+                "total_chapters": int,
+                "num_volumes": int,
+                "volume_ranges": [[start, end], ...]  # 每卷的章节范围
+            }
+        """
+        if self._plan_structure is not None:
+            return self._plan_structure
+
+        # 构建需要 LLM 解析的原始文本
+        total_chapters_raw = str(self.plan.get("total_chapters", "30")) if self.plan else "30"
+        volumes_raw = str(self.plan.get("volumes", "")) if self.plan else ""
+
+        system_prompt = (
+            "You are a JSON extractor. Extract structured info from novel plan fields. "
+            "Return ONLY a JSON object, no explanation."
+        )
+        user_msg = (
+            f"From the following novel plan fields, extract the structured information:\n\n"
+            f"total_chapters: \"{total_chapters_raw}\"\n"
+            f"volumes: \"{volumes_raw}\"\n\n"
+            f"Return a JSON object with:\n"
+            f"- \"total_chapters\": the maximum total number of chapters (integer)\n"
+            f"- \"num_volumes\": the number of volumes/books (integer)\n"
+            f"- \"volume_ranges\": an array of [start_chapter, end_chapter] for each volume\n\n"
+            f"Example: {{\"total_chapters\": 40, \"num_volumes\": 3, "
+            f"\"volume_ranges\": [[1, 12], [13, 25], [26, 40]]}}"
+        )
+
+        try:
+            from llm_client import get_client
+            from agents import _extract_json
+            client = get_client()
+            response = client.chat(system_prompt, [{"role": "user", "content": user_msg}])
+            if response:
+                parsed = _extract_json(response)
+                if parsed and isinstance(parsed.get("total_chapters"), int):
+                    self._plan_structure = parsed
+                    return self._plan_structure
+        except Exception:
+            pass
+
+        # Fallback: 正则提取
+        try:
+            all_nums = re.findall(r'\d+', total_chapters_raw)
+            total_ch = max(int(n) for n in all_nums) if all_nums else 30
+        except (ValueError, AttributeError):
+            total_ch = 30
+
+        try:
+            vol_nums = re.findall(r'\d+', volumes_raw)
+            num_vol = int(vol_nums[0]) if vol_nums else 1
+        except (ValueError, IndexError):
+            num_vol = 1
+
+        # 均分章节作为 fallback 的 volume_ranges
+        cpv = total_ch // num_vol
+        ranges = []
+        for i in range(num_vol):
+            start = i * cpv + 1
+            end = (i + 1) * cpv if i < num_vol - 1 else total_ch
+            ranges.append([start, end])
+
+        self._plan_structure = {
+            "total_chapters": total_ch,
+            "num_volumes": num_vol,
+            "volume_ranges": ranges,
+        }
+        return self._plan_structure
 
     # ==================== Phase 1: Planning ====================
     def phase_planning(self):
@@ -554,11 +629,8 @@ class NovelWorkflow:
 
         # Determine writing range
         if end_chapter is None:
-            total = self.plan.get("total_chapters", "30")
-            try:
-                end_chapter = int(re.search(r'\d+', str(total)).group())
-            except (AttributeError, ValueError):
-                end_chapter = 30
+            structure = self._parse_plan_structure()
+            end_chapter = structure["total_chapters"]
 
         # Checkpoint resume: skip completed chapters
         completed = storage.get_completed_chapter_count()
@@ -788,10 +860,8 @@ class NovelWorkflow:
         # Feature #6: Final summary (if all chapters are done)
         if config.ENABLE_FINAL_SUMMARY:
             completed_now = storage.get_completed_chapter_count()
-            try:
-                expected_total = int(re.search(r'\d+', str(self.plan.get("total_chapters", "30"))).group())
-            except (AttributeError, ValueError):
-                expected_total = 30
+            structure = self._parse_plan_structure()
+            expected_total = structure["total_chapters"]
             if completed_now >= expected_total:
                 self._generate_final_summary()
 
@@ -988,19 +1058,22 @@ class NovelWorkflow:
     def _get_volume_for_chapter(self, chapter_num: int) -> int:
         """Determine which volume a chapter belongs to."""
         if self.plan:
-            volumes_str = str(self.plan.get("volumes", ""))
-            total_chapters_str = str(self.plan.get("total_chapters", "30"))
+            structure = self._parse_plan_structure()
+            volume_ranges = structure.get("volume_ranges", [])
 
-            try:
-                total_chapters = int(re.search(r'\d+', total_chapters_str).group())
-            except (AttributeError, ValueError):
-                total_chapters = 30
+            # 精确匹配 volume_ranges 中的章节范围
+            if volume_ranges:
+                for i, vr in enumerate(volume_ranges, 1):
+                    if len(vr) == 2 and vr[0] <= chapter_num <= vr[1]:
+                        return i
+                # 超出所有范围时归入最后一卷
+                return len(volume_ranges)
 
-            volumes_match = re.search(r'(\d+)', volumes_str)
-            if volumes_match:
-                num_volumes = int(volumes_match.group(1))
-                chapters_per_volume = total_chapters // num_volumes
-                return min((chapter_num - 1) // chapters_per_volume + 1, num_volumes)
+            # Fallback: 均分
+            num_volumes = structure.get("num_volumes", 1)
+            total_chapters = structure["total_chapters"]
+            chapters_per_volume = total_chapters // num_volumes
+            return min((chapter_num - 1) // chapters_per_volume + 1, num_volumes)
 
         # Default: 30 chapters per volume
         return (chapter_num - 1) // 30 + 1
